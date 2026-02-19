@@ -456,6 +456,24 @@ const App = () => {
                                                 <BoardCenter deckCount={deck.length} discardPile={discardPile} onDrawFromDeck={drawFromDeck} onDrawFromDiscard={drawFromDiscard} indicatorTile={indicatorTile} canDraw={turnPhase === TurnPhase.DRAW} isDiscardActive={turnPhase === TurnPhase.DISCARD} />
                                                 <Opponent player={opponents[2]} position="right-inline" lastDiscard={playerDiscardPile[playerDiscardPile.length - 1]} isDroppable={turnPhase === TurnPhase.DISCARD} dropId="discard-zone" />
                                             </div>
+
+                                            {/* Local Player Info */}
+                                            <div className="absolute -bottom-24 left-0 z-30">
+                                                <div className="flex items-center gap-4 bg-black/40 p-2 pr-6 rounded-full border border-white/5 shadow-2xl backdrop-blur-md">
+                                                    <div className="relative">
+                                                        <img
+                                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnuQ6Gm1OskQt8MRl2gEDwaRFzBwAjmpqQN7Ic_logX72YA36_NJBZLZxXElyUfT7tJFjW5wBabUai2XOeEysbU6sAJ-Ac_mHFynMKBdXUb78qp2oJfIdGaG75fIWyd4TYzaRUs2FmgME3Elw06O8GypU2FOOcMdCJrXUPL_qzqQmXbXmofk9SJrkO5tATYFx_1vx5-_wMaXPAw_8RvURFvdKLxzm65sf-CbvblnJN6Qr27aQIg3s_NIHynZ_uPmslIw8LELIh6Exv"
+                                                            alt="OkeyPro_99"
+                                                            className={`w-12 h-12 rounded-full border-2 ${turnPhase !== TurnPhase.WAITING ? 'border-yellow-200' : 'border-white/20'}`}
+                                                        />
+                                                        <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-black"></div>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-sm font-bold ${turnPhase !== TurnPhase.WAITING ? 'text-yellow-100' : 'text-white/80'}`}>OkeyPro_99</span>
+                                                        <div className="text-[10px] text-white/50 uppercase tracking-wider">Level 42</div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                             <div className="flex flex-col items-center gap-4">
                                                 <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full border border-white/10 shadow-xl text-sm font-medium animate-pulse">{getInstructionText()}</div>
                                                 {errorMsg && <div className="bg-red-600/90 text-white px-6 py-2 rounded-full shadow-xl text-sm font-bold animate-bounce">{errorMsg}</div>}

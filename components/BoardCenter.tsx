@@ -25,6 +25,25 @@ const BoardCenter: React.FC<BoardCenterProps> = ({
     return (
         <div className="flex gap-12 items-center z-20">
 
+            {/* Discard Pile (Takeable by Player) */}
+            <div className="flex items-center">
+                <div
+                    className={`relative w-[65px] h-[90px] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center transition-all bg-black/20
+                        ${canDraw && discardPile.length > 0 ? 'ring-2 ring-yellow-400 cursor-pointer hover:bg-white/10 animate-pulse' : ''}
+                    `}
+                    onClick={(canDraw && discardPile.length > 0) ? onDrawFromDiscard : undefined}
+                    data-target="discard-pile"
+                >
+                    {discardPile.length > 0 ? (
+                        <Tile tile={discardPile[discardPile.length - 1]} scale={1} className="shadow-lg" />
+                    ) : (
+                        <div className="flex flex-col items-center justify-center gap-1 opacity-20">
+                            <span className="text-[9px] uppercase font-bold text-center px-1">Discard</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Deck Area */}
             <div className="flex items-center">
                 {/* Deck Card */}

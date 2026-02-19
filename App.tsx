@@ -129,6 +129,7 @@ const App = () => {
     useEffect(() => { preloadSounds(); }, []);
 
     const handleStartGame = () => { playSound('click'); startNewGame(); setTimeout(() => setStatus(GameStatus.PLAYING), 100); };
+    const handleReturnToMenu = () => { setStatus(GameStatus.MENU); };
 
     const startNewGame = () => {
         playSound('shuffle');
@@ -452,25 +453,19 @@ const App = () => {
                                         <Opponent player={opponents[0]} position="top" lastDiscard={rightDiscardPile[rightDiscardPile.length - 1]} />
 
                                         {/* Middle Row: Left Opponent, Board Center, Right Opponent */}
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[85%] flex flex-col items-center gap-12 z-20 w-full px-16">
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[75%] flex flex-col items-center gap-8 z-20 w-full px-16">
                                             <div className="w-full flex items-center justify-between">
                                                 <Opponent player={opponents[1]} position="left-inline" lastDiscard={topDiscardPile[topDiscardPile.length - 1]} />
                                                 <BoardCenter deckCount={deck.length} discardPile={discardPile} onDrawFromDeck={drawFromDeck} onDrawFromDiscard={drawFromDiscard} indicatorTile={indicatorTile} canDraw={turnPhase === TurnPhase.DRAW} isDiscardActive={turnPhase === TurnPhase.DISCARD} />
                                                 <Opponent player={opponents[2]} position="right-inline" lastDiscard={playerDiscardPile[playerDiscardPile.length - 1]} isDroppable={turnPhase === TurnPhase.DISCARD} dropId="discard-zone" />
                                             </div>
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full border border-white/10 shadow-xl text-sm font-medium animate-pulse">{getInstructionText()}</div>
-                                                {errorMsg && <div className="bg-red-600/90 text-white px-6 py-2 rounded-full shadow-xl text-sm font-bold animate-bounce">{errorMsg}</div>}
-                                            </div>
-                                        </div>
 
-                                        <div className="mt-auto w-full flex flex-col items-center pb-4">
-                                            {/* Local Player & Takeable Pile (Centered Above Rack) */}
-                                            <div className="w-full max-w-[800px] flex items-center justify-center gap-6 mb-2 relative z-30">
+                                            {/* Centered Player Elements (Between Deck and Rack) */}
+                                            <div className="flex items-center justify-center gap-10">
                                                 {/* Discard Pile Target (Takeable by Player) */}
                                                 <div
                                                     className={`relative group w-[65px] h-[90px] border-2 border-dashed border-white/10 rounded-sm flex items-center justify-center transition-all bg-black/20
-                                                        ${turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? 'ring-2 ring-yellow-400 cursor-pointer hover:bg-white/10 animate-pulse' : ''}
+                                                        ${turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? 'ring-2 ring-yellow-400 cursor-pointer hover:bg-white/10 animate-pulse shadow-lg shadow-yellow-400/20' : ''}
                                                     `}
                                                     onClick={(turnPhase === TurnPhase.DRAW && discardPile.length > 0) ? drawFromDiscard : undefined}
                                                     data-target="discard-pile"
@@ -501,19 +496,52 @@ const App = () => {
                                                 </div>
                                             </div>
 
+                                            <div className="flex flex-col items-center gap-4">
+                                                <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full border border-white/10 shadow-xl text-sm font-medium animate-pulse">{getInstructionText()}</div>
+                                                {errorMsg && <div className="bg-red-600/90 text-white px-6 py-2 rounded-full shadow-xl text-sm font-bold animate-bounce">{errorMsg}</div>}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-auto w-full flex flex-col items-center pb-4">
+                                            {/* Actions Bar above Rack */}
                                             <div className="w-full max-w-[800px] flex items-end justify-end px-6 mb-2 relative z-30">
+                                                {/* Middle Action: Discard / Finish */}
                                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-0 flex gap-2">
                                                     {turnPhase === TurnPhase.DISCARD && selectedTileId && (
                                                         <>
-                                                            <button onClick={discardSelectedTile} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-lg border-red-400 animate-bounce">DISCARD</button>
-                                                            <button onClick={handleFinishTurn} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-lg border-green-400 animate-pulse">FINISH GAME</button>
+                                                            <button onClick={discardSelectedTile} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-lg border-red-400 animate-bounce">
+                                                                DISCARD
+                                                            </button>
+                                                            <button onClick={handleFinishTurn} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-lg border-green-400 animate-pulse">
+                                                                FINISH GAME
+                                                            </button>
                                                         </>
                                                     )}
                                                 </div>
-                                                <button onClick={handleQuickSort} className="h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-500 shadow-lg flex items-center justify-center text-white"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg></button>
+
+                                                <button onClick={handleQuickSort} className="h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-500 shadow-lg border border-blue-400 flex items-center justify-center text-white active:translate-y-1 active:shadow-none transition-all">
+                                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                                                </button>
                                             </div>
-                                            <PlayerRack tiles={playerTiles as TileData[]} selectedTileId={selectedTileId} onTileClick={handleTileClick} onEmptySlotClick={handleEmptySlotClick} onTileMove={handleMoveTile} />
+
+                                            {/* Rack */}
+                                            <PlayerRack
+                                                tiles={playerTiles as TileData[]}
+                                                selectedTileId={selectedTileId}
+                                                onTileClick={handleTileClick}
+                                                onEmptySlotClick={handleEmptySlotClick}
+                                                onTileMove={handleMoveTile}
+                                            />
                                         </div>
+
+                                        {status === GameStatus.VICTORY && (
+                                            <VictoryScreen
+                                                score={500}
+                                                onPlayAgain={handleReturnToMenu}
+                                                playerScores={finalScores}
+                                                isDeckEmpty={finalScores !== null}
+                                            />
+                                        )}
                                     </>
                                 )}
                             </>

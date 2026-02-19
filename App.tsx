@@ -233,13 +233,14 @@ const App = () => {
             // Use the global game scale as a reference for "natural" tile size
             const standardWidth = BASE_WIDTH * scale;
 
-            // If the source node is a giant stack/container, don't use its full width for the tile scaling
-            // Cap it at 1.2x the standard game scale
-            const sWidth = sRect.width > standardWidth * 1.2 ? standardWidth : sRect.width;
+            // Cap source/target dimensions at the standard game scale to prevent exaggerated tile sizes
+            // (e.g. when drawing from a 130px deck stack or moving to a large avatar)
+            const sWidth = sRect.width > standardWidth ? standardWidth : sRect.width;
+            const tWidth = tRect.width > standardWidth ? standardWidth : tRect.width;
 
             // Calculate scale relative to baseline width (65px)
             const sScale = sWidth / BASE_WIDTH;
-            const tScale = tRect.width / BASE_WIDTH;
+            const tScale = tWidth / BASE_WIDTH;
 
             // Calculate centered positions
             const sTop = sRect.top + (sRect.height - (BASE_HEIGHT * sScale)) / 2;

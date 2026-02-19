@@ -787,6 +787,13 @@ const App = () => {
             onDragEnd={handleDragEnd}
         >
             <div className={`relative w-full h-screen overflow-hidden flex flex-col items-center justify-center ${status !== GameStatus.MENU ? 'felt-texture' : ''}`}>
+                {/* Flying Tile Layer (Outside scaled div to use viewport coordinates) */}
+                {animatingTile && (
+                    <div style={animatingTile.style} className="z-[100]">
+                        <Tile tile={animatingTile.tile} className="" />
+                    </div>
+                )}
+
                 <div
                     className="relative flex flex-col items-center justify-center pointer-events-auto"
                     style={{
@@ -815,12 +822,6 @@ const App = () => {
                             {/* --- GAME STATE --- */}
                             {status !== GameStatus.MENU && (
                                 <>
-                                    {/* Flying Tile Layer */}
-                                    {animatingTile && (
-                                        <div style={animatingTile.style}>
-                                            <Tile tile={animatingTile.tile} className="" />
-                                        </div>
-                                    )}
 
                                     {/* Top UI Bar */}
                                     <div className="absolute top-4 left-4 z-30">
@@ -857,7 +858,7 @@ const App = () => {
                                     />
 
                                     {/* Instruction Toast */}
-                                    <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2">
+                                    <div className="absolute top-36 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2">
                                         <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full backdrop-blur border border-white/10 shadow-xl text-sm font-medium animate-pulse">
                                             {getInstructionText()}
                                         </div>
@@ -869,7 +870,7 @@ const App = () => {
                                     </div>
 
                                     {/* Board Center Area (Stacked Deck/Indicator above Nameplate) */}
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[70%] flex flex-col items-center gap-12 z-20">
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[85%] flex flex-col items-center gap-12 z-20">
                                         <BoardCenter
                                             deckCount={deck.length}
                                             discardPile={discardPile}

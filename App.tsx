@@ -123,9 +123,28 @@ const App = () => {
     // Final scores when game ends due to empty deck
     const [finalScores, setFinalScores] = useState<{ playerName: string; score: number; isWinner: boolean }[] | null>(null);
 
+    const [opponents, setOpponents] = useState<Player[]>(MOCK_PLAYERS);
+
     const botsPlayingRef = useRef(false);
 
-    const [opponents, setOpponents] = useState<Player[]>(MOCK_PLAYERS);
+    // Scaling Logic
+    const [windowSize, setWindowSize] = useState({
+        width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+        height: typeof window !== 'undefined' ? window.innerHeight : 800
+    });
+
+    useEffect(() => {
+        const handleResize = () => {
+            setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // We design for a 1280x720 canvas
+    const TARGET_WIDTH = 1280;
+    const TARGET_HEIGHT = 720;
+    const scale = Math.min(windowSize.width / TARGET_WIDTH, windowSize.height / TARGET_HEIGHT);
 
     // Initialize Game
     useEffect(() => {
@@ -767,180 +786,191 @@ const App = () => {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
         >
-            <div className={`relative w-full h-screen overflow-hidden flex flex-col ${status !== GameStatus.MENU ? 'felt-texture' : ''}`}>
+            <div className={`relative w-full h-screen overflow-hidden flex flex-col items-center justify-center ${status !== GameStatus.MENU ? 'felt-texture' : ''}`}>
+                <div
+                    className="relative flex flex-col items-center justify-center pointer-events-auto"
+                    style={{
+                        width: `${TARGET_WIDTH}px`,
+                        height: `${TARGET_HEIGHT}px`,
+                        transform: `scale(${scale})`,
+                        transformOrigin: 'center center',
+                        flexShrink: 0
+                    }}
+                >
 
-                {/* DEBUG OVERLAY */}
-                <div className="absolute top-0 left-0 z-50 bg-black/80 text-green-400 font-mono text-xs p-2 pointer-events-none">
-                    DEBUG: {debugLog}
-                </div>
+                    {/* DEBUG OVERLAY */}
+                    <div className="absolute top-0 left-0 z-50 bg-black/80 text-green-400 font-mono text-xs p-2 pointer-events-none">
+                        DEBUG: {debugLog}
+                    </div>
 
-                {showSplash ? (
-                    <SplashScreen onFinish={() => setShowSplash(false)} />
-                ) : (
-                    <>
-                        {/* --- MENU STATE --- */}
-                        {status === GameStatus.MENU && (
-                            <MainMenu onPlay={handleStartGame} />
-                        )}
+                    {showSplash ? (
+                        <SplashScreen onFinish={() => setShowSplash(false)} />
+                    ) : (
+                        <>
+                            {/* --- MENU STATE --- */}
+                            {status === GameStatus.MENU && (
+                                <MainMenu onPlay={handleStartGame} />
+                            )}
 
-                        {/* --- GAME STATE --- */}
-                        {status !== GameStatus.MENU && (
-                            <>
-                                {/* Flying Tile Layer */}
-                                {animatingTile && (
-                                    <div style={animatingTile.style}>
-                                        <Tile tile={animatingTile.tile} className="" />
-                                    </div>
-                                )}
-
-                                {/* Top UI Bar */}
-                                <div className="absolute top-4 left-4 z-30">
-                                    <button onClick={handleReturnToMenu} className="bg-black/40 hover:bg-black/60 text-white p-3 rounded-full backdrop-blur-sm border border-white/10 shadow-lg transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                                        </svg>
-                                    </button>
-                                </div>
-
-                                {/* Debug/Menu Buttons */}
-                                <div className="absolute top-4 right-4 z-30 flex gap-2">
-                                    <button onClick={triggerVictory} className="bg-amber-600/40 hover:bg-amber-600/60 text-amber-200 px-3 py-2 rounded-full backdrop-blur-sm border border-amber-500/30 shadow-lg text-[10px] font-bold uppercase">Force Win</button>
-                                    <button onClick={startNewGame} className="bg-black/40 hover:bg-black/60 text-white px-4 py-2 rounded-full backdrop-blur-sm border border-white/10 shadow-lg text-xs font-bold uppercase">Restart</button>
-                                </div>
-
-                                {/* Opponents */}
-                                <Opponent
-                                    player={opponents[0]} // Victor (Top)
-                                    position="top"
-                                    lastDiscard={rightDiscardPile.length > 0 ? rightDiscardPile[rightDiscardPile.length - 1] : null}
-                                />
-                                <Opponent
-                                    player={opponents[1]} // Elena (Left)
-                                    position="left"
-                                    lastDiscard={topDiscardPile.length > 0 ? topDiscardPile[topDiscardPile.length - 1] : null}
-                                />
-                                <Opponent
-                                    player={opponents[2]} // Marcus (Right) (Discard Target)
-                                    position="right"
-                                    lastDiscard={playerDiscardPile.length > 0 ? playerDiscardPile[playerDiscardPile.length - 1] : null}
-                                    isDroppable={turnPhase === TurnPhase.DISCARD} // New Prop for Drop Zone
-                                    dropId="discard-zone"
-                                />
-
-                                {/* Instruction Toast */}
-                                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2">
-                                    <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full backdrop-blur border border-white/10 shadow-xl text-sm font-medium animate-pulse">
-                                        {getInstructionText()}
-                                    </div>
-                                    {errorMsg && (
-                                        <div className="bg-red-600/90 text-white px-6 py-2 rounded-full shadow-xl text-sm font-bold animate-bounce">
-                                            {errorMsg}
+                            {/* --- GAME STATE --- */}
+                            {status !== GameStatus.MENU && (
+                                <>
+                                    {/* Flying Tile Layer */}
+                                    {animatingTile && (
+                                        <div style={animatingTile.style}>
+                                            <Tile tile={animatingTile.tile} className="" />
                                         </div>
                                     )}
-                                </div>
 
-                                {/* Board Center Area (Stacked Deck/Indicator above Nameplate) */}
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[70%] flex flex-col items-center gap-12 z-20">
-                                    <BoardCenter
-                                        deckCount={deck.length}
-                                        discardPile={discardPile}
-                                        onDrawFromDeck={drawFromDeck}
-                                        onDrawFromDiscard={drawFromDiscard}
-                                        indicatorTile={indicatorTile}
-                                        canDraw={turnPhase === TurnPhase.DRAW}
-                                        isDiscardActive={turnPhase === TurnPhase.DISCARD}
-                                    />
-
-                                    <div className="flex items-center gap-6">
-                                        {/* Discard Pile Target (Now on Player's LEFT) */}
-                                        <div
-                                            className={`relative group w-[65px] h-[90px] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center transition-all
-                                                ${turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? 'ring-2 ring-yellow-400 hover:bg-white/5 cursor-pointer shadow-lg shadow-yellow-400/20' : ''}
-                                            `}
-                                            onClick={turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? drawFromDiscard : undefined}
-                                            data-target="discard-pile"
-                                        >
-                                            {discardPile.length > 0 ? (
-                                                <Tile tile={discardPile[discardPile.length - 1]} scale={1} className="shadow-lg" />
-                                            ) : (
-                                                <span className="text-white/20 text-[10px] font-bold uppercase tracking-wider">Pile</span>
-                                            )}
-                                        </div>
-
-                                        {/* Local Player Info (Nameplate) */}
-                                        <div className={`flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-sm border-2 transition-all duration-300 ${turnPhase !== TurnPhase.WAITING ? 'border-yellow-400/80 shadow-[0_0_20px_rgba(250,204,21,0.3)] bg-yellow-900/20' : 'border-white/10'}`}>
-                                            <div className="relative">
-                                                <img
-                                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnuQ6Gm1OskQt8MRl2gEDwaRFzBwAjmpqQN7Ic_logX72YA36_NJBZLZxXElyUfT7tJFjW5wBabUai2XOeEysbU6sAJ-Ac_mHFynMKBdXUb78qp2oJfIdGaG75fIWyd4TYzaRUs2FmgME3Elw06O8GypU2FOOcMdCJrXUPL_qzqQmXbXmofk9SJrkO5tATYFx_1vx5-_wMaXPAw_8RvURFvdKLxzm65sf-CbvblnJN6Qr27aQIg3s_NIHynZ_uPmslIw8LELIh6Exv"
-                                                    alt="OkeyPro_99"
-                                                    className={`w-12 h-12 rounded-full border-2 ${turnPhase !== TurnPhase.WAITING ? 'border-yellow-200' : 'border-white/20'}`}
-                                                />
-                                                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-black"></div>
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className={`text-sm font-bold ${turnPhase !== TurnPhase.WAITING ? 'text-yellow-100' : 'text-white/80'}`}>OkeyPro_99</span>
-                                                <div className="text-[10px] text-white/50 uppercase tracking-wider">Level 42</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Main Player Area (Bottom Rack) */}
-                                <div className="mt-auto w-full flex flex-col items-center pb-4">
-
-                                    {/* Actions Bar above Rack */}
-                                    <div className="w-full max-w-[800px] flex items-end justify-end px-6 mb-2 relative z-30">
-
-                                        {/* Middle Action: Discard / Finish */}
-                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-0 flex gap-2">
-                                            {turnPhase === TurnPhase.DISCARD && selectedTileId && (
-                                                <>
-                                                    <button onClick={discardSelectedTile} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-[0_-4px_10px_rgba(0,0,0,0.3)] border-t border-l border-r border-red-400 animate-bounce">
-                                                        DISCARD
-                                                    </button>
-                                                    <button onClick={handleFinishTurn} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-[0_-4px_10px_rgba(0,0,0,0.3)] border-t border-l border-r border-green-400 animate-pulse">
-                                                        FINISH GAME
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <button onClick={handleQuickSort} className="h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-500 shadow-[0_4px_0_rgb(30,58,138)] border border-blue-400 flex items-center justify-center text-white active:translate-y-1 active:shadow-none transition-all">
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                                    {/* Top UI Bar */}
+                                    <div className="absolute top-4 left-4 z-30">
+                                        <button onClick={handleReturnToMenu} className="bg-black/40 hover:bg-black/60 text-white p-3 rounded-full backdrop-blur-sm border border-white/10 shadow-lg transition-colors">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                                            </svg>
                                         </button>
                                     </div>
 
-                                    {/* Rack */}
-                                    <PlayerRack
-                                        tiles={playerTiles as TileData[]}
-                                        selectedTileId={selectedTileId}
-                                        onTileClick={handleTileClick}
-                                        onEmptySlotClick={handleEmptySlotClick}
-                                        onTileMove={handleMoveTile}
-                                    />
-                                </div>
+                                    {/* Debug/Menu Buttons */}
+                                    <div className="absolute top-4 right-4 z-30 flex gap-2">
+                                        <button onClick={triggerVictory} className="bg-amber-600/40 hover:bg-amber-600/60 text-amber-200 px-3 py-2 rounded-full backdrop-blur-sm border border-amber-500/30 shadow-lg text-[10px] font-bold uppercase">Force Win</button>
+                                        <button onClick={startNewGame} className="bg-black/40 hover:bg-black/60 text-white px-4 py-2 rounded-full backdrop-blur-sm border border-white/10 shadow-lg text-xs font-bold uppercase">Restart</button>
+                                    </div>
 
-                                {status === GameStatus.VICTORY && (
-                                    <VictoryScreen
-                                        score={500}
-                                        onPlayAgain={handleReturnToMenu}
-                                        playerScores={finalScores}
-                                        isDeckEmpty={finalScores !== null}
+                                    {/* Opponents */}
+                                    <Opponent
+                                        player={opponents[0]} // Victor (Top)
+                                        position="top"
+                                        lastDiscard={rightDiscardPile.length > 0 ? rightDiscardPile[rightDiscardPile.length - 1] : null}
                                     />
-                                )}
-                            </>
-                        )}
-                    </>
-                )}
+                                    <Opponent
+                                        player={opponents[1]} // Elena (Left)
+                                        position="left"
+                                        lastDiscard={topDiscardPile.length > 0 ? topDiscardPile[topDiscardPile.length - 1] : null}
+                                    />
+                                    <Opponent
+                                        player={opponents[2]} // Marcus (Right) (Discard Target)
+                                        position="right"
+                                        lastDiscard={playerDiscardPile.length > 0 ? playerDiscardPile[playerDiscardPile.length - 1] : null}
+                                        isDroppable={turnPhase === TurnPhase.DISCARD} // New Prop for Drop Zone
+                                        dropId="discard-zone"
+                                    />
 
-                <DragOverlay>
-                    {activeDragTile && (
-                        <div style={{ width: '55px', height: '80px', pointerEvents: 'none' }}>
-                            <Tile tile={activeDragTile} selected={true} scale={1} fluid={true} className="shadow-2xl scale-110 cursor-grabbing" />
-                        </div>
+                                    {/* Instruction Toast */}
+                                    <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2">
+                                        <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full backdrop-blur border border-white/10 shadow-xl text-sm font-medium animate-pulse">
+                                            {getInstructionText()}
+                                        </div>
+                                        {errorMsg && (
+                                            <div className="bg-red-600/90 text-white px-6 py-2 rounded-full shadow-xl text-sm font-bold animate-bounce">
+                                                {errorMsg}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Board Center Area (Stacked Deck/Indicator above Nameplate) */}
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[70%] flex flex-col items-center gap-12 z-20">
+                                        <BoardCenter
+                                            deckCount={deck.length}
+                                            discardPile={discardPile}
+                                            onDrawFromDeck={drawFromDeck}
+                                            onDrawFromDiscard={drawFromDiscard}
+                                            indicatorTile={indicatorTile}
+                                            canDraw={turnPhase === TurnPhase.DRAW}
+                                            isDiscardActive={turnPhase === TurnPhase.DISCARD}
+                                        />
+
+                                        <div className="flex items-center gap-6">
+                                            {/* Discard Pile Target (Now on Player's LEFT) */}
+                                            <div
+                                                className={`relative group w-[65px] h-[90px] border-2 border-dashed border-white/20 rounded-sm flex items-center justify-center transition-all
+                                                ${turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? 'ring-2 ring-yellow-400 hover:bg-white/5 cursor-pointer shadow-lg shadow-yellow-400/20' : ''}
+                                            `}
+                                                onClick={turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? drawFromDiscard : undefined}
+                                                data-target="discard-pile"
+                                            >
+                                                {discardPile.length > 0 ? (
+                                                    <Tile tile={discardPile[discardPile.length - 1]} scale={1} className="shadow-lg" />
+                                                ) : (
+                                                    <span className="text-white/20 text-[10px] font-bold uppercase tracking-wider">Pile</span>
+                                                )}
+                                            </div>
+
+                                            {/* Local Player Info (Nameplate) */}
+                                            <div className={`flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-sm border-2 transition-all duration-300 ${turnPhase !== TurnPhase.WAITING ? 'border-yellow-400/80 shadow-[0_0_20px_rgba(250,204,21,0.3)] bg-yellow-900/20' : 'border-white/10'}`}>
+                                                <div className="relative">
+                                                    <img
+                                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnuQ6Gm1OskQt8MRl2gEDwaRFzBwAjmpqQN7Ic_logX72YA36_NJBZLZxXElyUfT7tJFjW5wBabUai2XOeEysbU6sAJ-Ac_mHFynMKBdXUb78qp2oJfIdGaG75fIWyd4TYzaRUs2FmgME3Elw06O8GypU2FOOcMdCJrXUPL_qzqQmXbXmofk9SJrkO5tATYFx_1vx5-_wMaXPAw_8RvURFvdKLxzm65sf-CbvblnJN6Qr27aQIg3s_NIHynZ_uPmslIw8LELIh6Exv"
+                                                        alt="OkeyPro_99"
+                                                        className={`w-12 h-12 rounded-full border-2 ${turnPhase !== TurnPhase.WAITING ? 'border-yellow-200' : 'border-white/20'}`}
+                                                    />
+                                                    <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-black"></div>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className={`text-sm font-bold ${turnPhase !== TurnPhase.WAITING ? 'text-yellow-100' : 'text-white/80'}`}>OkeyPro_99</span>
+                                                    <div className="text-[10px] text-white/50 uppercase tracking-wider">Level 42</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Main Player Area (Bottom Rack) */}
+                                    <div className="mt-auto w-full flex flex-col items-center pb-4">
+
+                                        {/* Actions Bar above Rack */}
+                                        <div className="w-full max-w-[800px] flex items-end justify-end px-6 mb-2 relative z-30">
+
+                                            {/* Middle Action: Discard / Finish */}
+                                            <div className="absolute left-1/2 -translate-x-1/2 bottom-0 flex gap-2">
+                                                {turnPhase === TurnPhase.DISCARD && selectedTileId && (
+                                                    <>
+                                                        <button onClick={discardSelectedTile} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-[0_-4px_10px_rgba(0,0,0,0.3)] border-t border-l border-r border-red-400 animate-bounce">
+                                                            DISCARD
+                                                        </button>
+                                                        <button onClick={handleFinishTurn} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-t-xl shadow-[0_-4px_10px_rgba(0,0,0,0.3)] border-t border-l border-r border-green-400 animate-pulse">
+                                                            FINISH GAME
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            <button onClick={handleQuickSort} className="h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-500 shadow-[0_4px_0_rgb(30,58,138)] border border-blue-400 flex items-center justify-center text-white active:translate-y-1 active:shadow-none transition-all">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                                            </button>
+                                        </div>
+
+                                        {/* Rack */}
+                                        <PlayerRack
+                                            tiles={playerTiles as TileData[]}
+                                            selectedTileId={selectedTileId}
+                                            onTileClick={handleTileClick}
+                                            onEmptySlotClick={handleEmptySlotClick}
+                                            onTileMove={handleMoveTile}
+                                        />
+                                    </div>
+
+                                    {status === GameStatus.VICTORY && (
+                                        <VictoryScreen
+                                            score={500}
+                                            onPlayAgain={handleReturnToMenu}
+                                            playerScores={finalScores}
+                                            isDeckEmpty={finalScores !== null}
+                                        />
+                                    )}
+                                </>
+                            )}
+                        </>
                     )}
-                </DragOverlay>
 
+                    <DragOverlay>
+                        {activeDragTile && (
+                            <div style={{ width: '55px', height: '80px', pointerEvents: 'none' }}>
+                                <Tile tile={activeDragTile} selected={true} scale={1} fluid={true} className="shadow-2xl scale-110 cursor-grabbing" />
+                            </div>
+                        )}
+                    </DragOverlay>
+
+                </div>
             </div>
         </DndContext>
     );

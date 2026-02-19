@@ -481,6 +481,7 @@ const App = () => {
         } else {
             // Draw from deck
             tileRightDrew = drawFromDeckForBot();
+            setDeck([...currentDeck]);
 
             // Animate from deck to right bot
             await new Promise<void>(resolve => {
@@ -532,6 +533,7 @@ const App = () => {
             });
         } else {
             tileTopDrew = drawFromDeckForBot();
+            setDeck([...currentDeck]);
 
             await new Promise<void>(resolve => {
                 animateMove(
@@ -582,6 +584,7 @@ const App = () => {
             });
         } else {
             tileLeftDrew = drawFromDeckForBot();
+            setDeck([...currentDeck]);
 
             await new Promise<void>(resolve => {
                 animateMove(

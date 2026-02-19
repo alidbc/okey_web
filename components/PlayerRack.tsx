@@ -112,20 +112,6 @@ const PlayerRack: React.FC<PlayerRackProps> = ({ tiles, selectedTileId, onTileCl
     const [isFallback, setIsFallback] = useState(false);
     const [activeDragTile, setActiveDragTile] = useState<TileData | null>(null);
 
-    const sensors = useSensors(
-        useSensor(MouseSensor, {
-            activationConstraint: {
-                distance: 8, // Require 8px movement before drag starts (allows clicks)
-            },
-        }),
-        useSensor(TouchSensor, {
-            activationConstraint: {
-                delay: 150, // Short delay to distinguish tap from drag
-                tolerance: 5,
-            },
-        })
-    );
-
     const handleError = () => {
         if (!isFallback) {
             console.warn(`Failed to load ${LOCAL_RACK}, switching to hotlinked fallback.`);

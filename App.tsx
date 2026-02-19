@@ -299,29 +299,62 @@ const App = () => {
         botsPlayingRef.current = true;
         const setBotActive = (idx: number) => setOpponents(prev => prev.map((p, i) => ({ ...p, isActive: i === idx })));
 
-        // Right Bot
+        // Right Bot (Marcus)
         setBotActive(2); await new Promise(r => setTimeout(r, 800));
-        let tileR = (playerDiscardPile.length > 0 && Math.random() < 0.3) ? playerDiscardPile.pop()! : deck.pop()!;
-        setPlayerDiscardPile([...playerDiscardPile]); setDeck([...deck]);
-        await new Promise<void>(res => animateMove('[data-target="opponent-drop-right"]', '[data-source="opponent-avatar-right"]', tileR, () => res()));
+        const fromDiscardR = (playerDiscardPile.length > 0 && Math.random() < 0.3);
+        let tileR: TileData;
+        if (fromDiscardR) {
+            tileR = playerDiscardPile[playerDiscardPile.length - 1];
+            setPlayerDiscardPile(prev => prev.slice(0, -1));
+        } else {
+            tileR = deck[deck.length - 1];
+            setDeck(prev => prev.slice(0, -1));
+        }
+        const sourceSelectorR = fromDiscardR ? '[data-target="discard-zone"]' : '[data-source="draw-deck"]';
+        await new Promise<void>(res => animateMove(sourceSelectorR, '[data-source="opponent-avatar-right"]', tileR, () => res()));
         await new Promise(r => setTimeout(r, 400));
-        await new Promise<void>(res => animateMove('[data-source="opponent-avatar-right"]', '[data-target="opponent-drop-top"]', tileR, () => { setRightDiscardPile(prev => [...prev, tileR]); res(); }));
+        await new Promise<void>(res => animateMove('[data-source="opponent-avatar-right"]', '[data-target="opponent-drop-top"]', tileR, () => {
+            setRightDiscardPile(prev => [...prev, tileR]);
+            res();
+        }));
 
-        // Top Bot
+        // Top Bot (Victor)
         setBotActive(0); await new Promise(r => setTimeout(r, 800));
-        let tileT = (rightDiscardPile.length > 0 && Math.random() < 0.3) ? rightDiscardPile.pop()! : deck.pop()!;
-        setRightDiscardPile([...rightDiscardPile]); setDeck([...deck]);
-        await new Promise<void>(res => animateMove('[data-target="opponent-drop-top"]', '[data-source="opponent-avatar-top"]', tileT, () => res()));
+        const fromDiscardT = (rightDiscardPile.length > 0 && Math.random() < 0.3);
+        let tileT: TileData;
+        if (fromDiscardT) {
+            tileT = rightDiscardPile[rightDiscardPile.length - 1];
+            setRightDiscardPile(prev => prev.slice(0, -1));
+        } else {
+            tileT = deck[deck.length - 1];
+            setDeck(prev => prev.slice(0, -1));
+        }
+        const sourceSelectorT = fromDiscardT ? '[data-target="opponent-drop-top"]' : '[data-source="draw-deck"]';
+        await new Promise<void>(res => animateMove(sourceSelectorT, '[data-source="opponent-avatar-top"]', tileT, () => res()));
         await new Promise(r => setTimeout(r, 400));
-        await new Promise<void>(res => animateMove('[data-source="opponent-avatar-top"]', '[data-target="opponent-drop-left"]', tileT, () => { setTopDiscardPile(prev => [...prev, tileT]); res(); }));
+        await new Promise<void>(res => animateMove('[data-source="opponent-avatar-top"]', '[data-target="opponent-drop-left"]', tileT, () => {
+            setTopDiscardPile(prev => [...prev, tileT]);
+            res();
+        }));
 
-        // Left Bot
+        // Left Bot (Elena)
         setBotActive(1); await new Promise(r => setTimeout(r, 800));
-        let tileL = (topDiscardPile.length > 0 && Math.random() < 0.3) ? topDiscardPile.pop()! : deck.pop()!;
-        setTopDiscardPile([...topDiscardPile]); setDeck([...deck]);
-        await new Promise<void>(res => animateMove('[data-target="opponent-drop-left"]', '[data-source="opponent-avatar-left"]', tileL, () => res()));
+        const fromDiscardL = (topDiscardPile.length > 0 && Math.random() < 0.3);
+        let tileL: TileData;
+        if (fromDiscardL) {
+            tileL = topDiscardPile[topDiscardPile.length - 1];
+            setTopDiscardPile(prev => prev.slice(0, -1));
+        } else {
+            tileL = deck[deck.length - 1];
+            setDeck(prev => prev.slice(0, -1));
+        }
+        const sourceSelectorL = fromDiscardL ? '[data-target="opponent-drop-left"]' : '[data-source="draw-deck"]';
+        await new Promise<void>(res => animateMove(sourceSelectorL, '[data-source="opponent-avatar-left"]', tileL, () => res()));
         await new Promise(r => setTimeout(r, 400));
-        await new Promise<void>(res => animateMove('[data-source="opponent-avatar-left"]', '[data-target="discard-pile"]', tileL, () => { setDiscardPile(prev => [...prev, tileL]); res(); }));
+        await new Promise<void>(res => animateMove('[data-source="opponent-avatar-left"]', '[data-target="discard-pile"]', tileL, () => {
+            setDiscardPile(prev => [...prev, tileL]);
+            res();
+        }));
 
         setOpponents(prev => prev.map(p => ({ ...p, isActive: false })));
         botsPlayingRef.current = false;

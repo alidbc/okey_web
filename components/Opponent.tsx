@@ -19,21 +19,23 @@ interface OpponentProps {
 }
 
 const Opponent: React.FC<OpponentProps> = ({ player, position, lastDiscard, isDroppable, dropId }) => {
-  // Positioning classes
+  const isInline = position.includes('inline');
+  const basePosition = position.replace('-inline', '') as 'top' | 'left' | 'right';
+
   let containerClass = '';
   let dropSlotClass = '';
 
-  switch (position) {
+  switch (basePosition) {
     case 'top':
       containerClass = 'top-4 left-1/2 -translate-x-1/2 flex-row items-center gap-4';
       dropSlotClass = 'relative';
       break;
     case 'left':
-      containerClass = 'left-6 top-1/2 -translate-y-1/2 flex-row items-center gap-4';
+      containerClass = `${isInline ? '' : 'left-6 top-[40%] -translate-y-1/2'} flex-row items-center gap-4`;
       dropSlotClass = 'relative';
       break;
     case 'right':
-      containerClass = 'right-6 top-1/2 -translate-y-1/2 flex-row-reverse items-center gap-4';
+      containerClass = `${isInline ? '' : 'right-6 top-[40%] -translate-y-1/2'} flex-row-reverse items-center gap-4`;
       dropSlotClass = 'relative';
       break;
   }
@@ -41,7 +43,7 @@ const Opponent: React.FC<OpponentProps> = ({ player, position, lastDiscard, isDr
   const namePlate = (
     <div
       className={`relative flex items-center bg-gradient-to-b from-[#5c3a21] to-[#3e2613] border-2 transition-all duration-300 ${player.isActive ? 'border-yellow-400 shadow-[0_0_25px_rgba(250,204,21,0.8)] scale-105' : 'border-[#2a1a0a]'} rounded-sm p-1.5 min-w-[150px] shadow-lg`}
-      data-source={`opponent-avatar-${position}`}
+      data-source={`opponent-avatar-${basePosition}`}
     >
       <img src={player.avatar} alt={player.name} className={`w-12 h-12 rounded-full border-2 ${player.isActive ? 'border-yellow-200 animate-pulse' : 'border-[#b8860b]'} shadow-md object-cover`} />
       <div className="ml-3 flex flex-col items-start justify-center text-white">
@@ -54,12 +56,15 @@ const Opponent: React.FC<OpponentProps> = ({ player, position, lastDiscard, isDr
   );
 
   return (
-    <div className={`absolute ${containerClass} flex z-10`}>
+    <div
+      className={`${isInline ? 'relative' : 'absolute'} ${containerClass} flex z-10`}
+      style={(!isInline && (basePosition === 'left' || basePosition === 'right')) ? { top: '40%' } : undefined}
+    >
       {namePlate}
 
       <div className={dropSlotClass}>
         <DropSlot
-          id={dropId || `opponent-drop-${position}`}
+          id={dropId || `opponent-drop-${basePosition}`}
           label="Drop"
           isActive={isDroppable}
         >

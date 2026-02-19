@@ -367,13 +367,22 @@ const App = () => {
             const startRect = sourceNode.getBoundingClientRect();
             const targetRect = targetNode.getBoundingClientRect();
 
+            // Use the actual measured width of start and target, 
+            // but keep the tile's internal aspect ratio to prevent distortion.
+            const ASSET_RATIO = 313 / 218;
+
+            const startWidth = startRect.width;
+            const startHeight = startWidth * ASSET_RATIO;
+            const targetWidth = targetRect.width;
+            const targetHeight = targetWidth * ASSET_RATIO;
+
             const initialStyle: React.CSSProperties = {
                 position: 'fixed',
-                // Center the tile (55x80) relative to the source element center
-                top: startRect.top + (startRect.height - 80) / 2,
-                left: startRect.left + (startRect.width - 55) / 2,
-                width: 55, // Match standard tile width
-                height: 80, // Match standard tile height
+                // Center vertically if the source rect is taller than the tile (like a rack slot)
+                top: startRect.top + (startRect.height - startHeight) / 2,
+                left: startRect.left,
+                width: startWidth,
+                height: startHeight,
                 zIndex: 100,
                 pointerEvents: 'none',
                 transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)',
@@ -391,9 +400,11 @@ const App = () => {
                         ...prev,
                         style: {
                             ...prev.style,
-                            // Center the tile relative to the target element center
-                            top: targetRect.top + (targetRect.height - 80) / 2,
-                            left: targetRect.left + (targetRect.width - 55) / 2,
+                            // Align to the bottom of the target rect (for rack slots) or center
+                            top: targetRect.bottom - targetHeight,
+                            left: targetRect.left,
+                            width: targetWidth,
+                            height: targetHeight,
                             transform: 'rotate(0deg) scale(1.0)'
                         }
                     };
@@ -790,7 +801,7 @@ const App = () => {
                 {/* Flying Tile Layer (Outside scaled div to use viewport coordinates) */}
                 {animatingTile && (
                     <div style={animatingTile.style} className="z-[100]">
-                        <Tile tile={animatingTile.tile} className="" />
+                        <Tile tile={animatingTile.tile} fluid={true} className="" />
                     </div>
                 )}
 
@@ -844,18 +855,6 @@ const App = () => {
                                         position="top"
                                         lastDiscard={rightDiscardPile.length > 0 ? rightDiscardPile[rightDiscardPile.length - 1] : null}
                                     />
-                                    <Opponent
-                                        player={opponents[1]} // Elena (Left)
-                                        position="left"
-                                        lastDiscard={topDiscardPile.length > 0 ? topDiscardPile[topDiscardPile.length - 1] : null}
-                                    />
-                                    <Opponent
-                                        player={opponents[2]} // Marcus (Right) (Discard Target)
-                                        position="right"
-                                        lastDiscard={playerDiscardPile.length > 0 ? playerDiscardPile[playerDiscardPile.length - 1] : null}
-                                        isDroppable={turnPhase === TurnPhase.DISCARD} // New Prop for Drop Zone
-                                        dropId="discard-zone"
-                                    />
 
                                     {/* Instruction Toast */}
                                     <div className="absolute top-36 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-2">
@@ -869,17 +868,33 @@ const App = () => {
                                         )}
                                     </div>
 
-                                    {/* Board Center Area (Stacked Deck/Indicator above Nameplate) */}
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[85%] flex flex-col items-center gap-12 z-20">
-                                        <BoardCenter
-                                            deckCount={deck.length}
-                                            discardPile={discardPile}
-                                            onDrawFromDeck={drawFromDeck}
-                                            onDrawFromDiscard={drawFromDiscard}
-                                            indicatorTile={indicatorTile}
-                                            canDraw={turnPhase === TurnPhase.DRAW}
-                                            isDiscardActive={turnPhase === TurnPhase.DISCARD}
-                                        />
+                                    {/* Board Center Area (Aligned Side Opponents + Deck) */}
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[85%] flex flex-col items-center gap-12 z-20 w-full px-16">
+                                        <div className="w-full flex items-center justify-between">
+                                            <Opponent
+                                                player={opponents[1]} // Elena (Left)
+                                                position="left-inline"
+                                                lastDiscard={topDiscardPile.length > 0 ? topDiscardPile[topDiscardPile.length - 1] : null}
+                                            />
+
+                                            <BoardCenter
+                                                deckCount={deck.length}
+                                                discardPile={discardPile}
+                                                onDrawFromDeck={drawFromDeck}
+                                                onDrawFromDiscard={drawFromDiscard}
+                                                indicatorTile={indicatorTile}
+                                                canDraw={turnPhase === TurnPhase.DRAW}
+                                                isDiscardActive={turnPhase === TurnPhase.DISCARD}
+                                            />
+
+                                            <Opponent
+                                                player={opponents[2]} // Marcus (Right)
+                                                position="right-inline"
+                                                lastDiscard={playerDiscardPile.length > 0 ? playerDiscardPile[playerDiscardPile.length - 1] : null}
+                                                isDroppable={turnPhase === TurnPhase.DISCARD}
+                                                dropId="discard-zone"
+                                            />
+                                        </div>
 
                                         <div className="flex items-center gap-6">
                                             {/* Discard Pile Target (Now on Player's LEFT) */}
@@ -965,7 +980,11 @@ const App = () => {
 
                     <DragOverlay>
                         {activeDragTile && (
-                            <div style={{ width: '55px', height: '80px', pointerEvents: 'none' }}>
+                            <div style={{
+                                width: `${(document.querySelector('[data-target^="rack-slot-"]')?.getBoundingClientRect().width || (65 * scale))}px`,
+                                height: `${(document.querySelector('[data-target^="rack-slot-"]')?.getBoundingClientRect().width || (65 * scale)) * (313 / 218)}px`,
+                                pointerEvents: 'none'
+                            }}>
                                 <Tile tile={activeDragTile} selected={true} scale={1} fluid={true} className="shadow-2xl scale-110 cursor-grabbing" />
                             </div>
                         )}

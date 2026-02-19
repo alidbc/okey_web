@@ -223,27 +223,44 @@ const App = () => {
         const sourceNode = document.querySelector(sourceSelector);
         const targetNode = document.querySelector(targetSelector);
         if (sourceNode && targetNode) {
-            const startRect = sourceNode.getBoundingClientRect();
-            const targetRect = targetNode.getBoundingClientRect();
+            const sRect = sourceNode.getBoundingClientRect();
+            const tRect = targetNode.getBoundingClientRect();
+
+            const BASE_WIDTH = 65;
             const ASSET_RATIO = 313 / 218;
-            const standardWidth = 65 * scale;
-            const standardHeight = standardWidth * ASSET_RATIO;
-            const startWidth = startRect.width > (standardWidth * 1.1) ? standardWidth : startRect.width;
-            const startHeight = startWidth * ASSET_RATIO;
-            const targetWidth = targetRect.width > (standardWidth * 1.1) ? standardWidth : targetRect.width;
-            const targetHeight = targetWidth * ASSET_RATIO;
+            const BASE_HEIGHT = BASE_WIDTH * ASSET_RATIO;
+
+            // Use the global game scale as a reference for "natural" tile size
+            const standardWidth = BASE_WIDTH * scale;
+
+            // If the source node is a giant stack/container, don't use its full width for the tile scaling
+            // Cap it at 1.2x the standard game scale
+            const sWidth = sRect.width > standardWidth * 1.2 ? standardWidth : sRect.width;
+
+            // Calculate scale relative to baseline width (65px)
+            const sScale = sWidth / BASE_WIDTH;
+            const tScale = tRect.width / BASE_WIDTH;
+
+            // Calculate centered positions
+            const sTop = sRect.top + (sRect.height - (BASE_HEIGHT * sScale)) / 2;
+            const sLeft = sRect.left + (sRect.width - (BASE_WIDTH * sScale)) / 2;
+            const tTop = tRect.top + (tRect.height - (BASE_HEIGHT * tScale)) / 2;
+            const tLeft = tRect.left + (tRect.width - (BASE_WIDTH * tScale)) / 2;
 
             const initialStyle: React.CSSProperties = {
                 position: 'fixed',
-                top: startRect.top + (startRect.height - startHeight) / 2,
-                left: (startRect.left + (startRect.width - startWidth) / 2),
-                width: startWidth,
-                height: startHeight,
+                top: sTop,
+                left: sLeft,
+                width: BASE_WIDTH,
+                height: BASE_HEIGHT,
+                transform: `scale(${sScale})`,
+                transformOrigin: '0 0',
                 zIndex: 100,
                 pointerEvents: 'none',
                 transition: 'all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)',
                 opacity: 1
             };
+
             playSound('draw');
             setAnimatingTile({ tile, style: initialStyle });
             setTimeout(() => {
@@ -251,10 +268,9 @@ const App = () => {
                     ...prev,
                     style: {
                         ...prev.style,
-                        top: (targetRect.top + (targetRect.height - targetHeight) / 2),
-                        left: (targetRect.left + (targetRect.width - targetWidth) / 2),
-                        width: targetWidth,
-                        height: targetHeight,
+                        top: tTop,
+                        left: tLeft,
+                        transform: `scale(${tScale})`,
                     }
                 } : null);
             }, 50);
@@ -446,7 +462,7 @@ const App = () => {
 
                 {animatingTile && (
                     <div style={animatingTile.style} className="z-[100]">
-                        <Tile tile={animatingTile.tile} fluid={true} className="" />
+                        <Tile tile={animatingTile.tile} fluid={false} className="" />
                     </div>
                 )}
             </div>

@@ -450,16 +450,42 @@ const App = () => {
                                             <button onClick={() => setStatus(GameStatus.MENU)} className="bg-black/40 text-white p-3 rounded-full border border-white/10 shadow-lg"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg></button>
                                         </div>
                                         <Opponent player={opponents[0]} position="top" lastDiscard={rightDiscardPile[rightDiscardPile.length - 1]} />
+
+                                        {/* Middle Row: Left Opponent, Board Center, Right Opponent */}
                                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[85%] flex flex-col items-center gap-12 z-20 w-full px-16">
                                             <div className="w-full flex items-center justify-between">
                                                 <Opponent player={opponents[1]} position="left-inline" lastDiscard={topDiscardPile[topDiscardPile.length - 1]} />
                                                 <BoardCenter deckCount={deck.length} discardPile={discardPile} onDrawFromDeck={drawFromDeck} onDrawFromDiscard={drawFromDiscard} indicatorTile={indicatorTile} canDraw={turnPhase === TurnPhase.DRAW} isDiscardActive={turnPhase === TurnPhase.DISCARD} />
                                                 <Opponent player={opponents[2]} position="right-inline" lastDiscard={playerDiscardPile[playerDiscardPile.length - 1]} isDroppable={turnPhase === TurnPhase.DISCARD} dropId="discard-zone" />
                                             </div>
+                                            <div className="flex flex-col items-center gap-4">
+                                                <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full border border-white/10 shadow-xl text-sm font-medium animate-pulse">{getInstructionText()}</div>
+                                                {errorMsg && <div className="bg-red-600/90 text-white px-6 py-2 rounded-full shadow-xl text-sm font-bold animate-bounce">{errorMsg}</div>}
+                                            </div>
+                                        </div>
 
-                                            {/* Local Player Info */}
-                                            <div className="absolute -bottom-24 left-0 z-30">
-                                                <div className="flex items-center gap-4 bg-black/40 p-2 pr-6 rounded-full border border-white/5 shadow-2xl backdrop-blur-md">
+                                        <div className="mt-auto w-full flex flex-col items-center pb-4">
+                                            {/* Local Player & Takeable Pile (Above Rack) */}
+                                            <div className="w-full max-w-[800px] flex items-end justify-between px-6 mb-2 relative">
+                                                {/* Discard Pile Target (On Player's LEFT) */}
+                                                <div
+                                                    className={`relative group w-[65px] h-[90px] border-2 border-dashed border-white/10 rounded-sm flex items-center justify-center transition-all bg-black/20
+                                                        ${turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? 'ring-2 ring-yellow-400 cursor-pointer hover:bg-white/10 animate-pulse' : ''}
+                                                    `}
+                                                    onClick={(turnPhase === TurnPhase.DRAW && discardPile.length > 0) ? drawFromDiscard : undefined}
+                                                    data-target="discard-pile"
+                                                >
+                                                    {discardPile.length > 0 ? (
+                                                        <Tile tile={discardPile[discardPile.length - 1]} scale={1} className="shadow-lg" />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center gap-1 opacity-20">
+                                                            <span className="text-[9px] uppercase font-bold text-center px-1 text-white">Pile</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Local Player Nameplate (On Player's RIGHT) */}
+                                                <div className={`flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-sm border-2 transition-all duration-300 ${turnPhase !== TurnPhase.WAITING ? 'border-yellow-400/80 shadow-[0_0_20px_rgba(250,204,21,0.3)] bg-yellow-900/20' : 'border-white/10'}`}>
                                                     <div className="relative">
                                                         <img
                                                             src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnuQ6Gm1OskQt8MRl2gEDwaRFzBwAjmpqQN7Ic_logX72YA36_NJBZLZxXElyUfT7tJFjW5wBabUai2XOeEysbU6sAJ-Ac_mHFynMKBdXUb78qp2oJfIdGaG75fIWyd4TYzaRUs2FmgME3Elw06O8GypU2FOOcMdCJrXUPL_qzqQmXbXmofk9SJrkO5tATYFx_1vx5-_wMaXPAw_8RvURFvdKLxzm65sf-CbvblnJN6Qr27aQIg3s_NIHynZ_uPmslIw8LELIh6Exv"
@@ -474,12 +500,7 @@ const App = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="bg-black/50 text-amber-100 px-6 py-2 rounded-full border border-white/10 shadow-xl text-sm font-medium animate-pulse">{getInstructionText()}</div>
-                                                {errorMsg && <div className="bg-red-600/90 text-white px-6 py-2 rounded-full shadow-xl text-sm font-bold animate-bounce">{errorMsg}</div>}
-                                            </div>
-                                        </div>
-                                        <div className="mt-auto w-full flex flex-col items-center pb-4">
+
                                             <div className="w-full max-w-[800px] flex items-end justify-end px-6 mb-2 relative z-30">
                                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-0 flex gap-2">
                                                     {turnPhase === TurnPhase.DISCARD && selectedTileId && (

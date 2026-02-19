@@ -139,9 +139,21 @@ const App = () => {
         newDeck.splice(indicatorIndex, 1);
         setIndicatorTile(indicator);
 
+        // Okey Rule: Indicator Value + 1 (of same color) is the Okey (Wildcard)
+        // If Indicator is 13, Okey is 1.
+        const okeyValue = indicator.value === 13 ? 1 : indicator.value + 1;
+        const okeyColor = indicator.color;
+
         newDeck = newDeck.map(tile => {
             const t = { ...tile, isWildcard: false };
-            if (t.isFakeOkey) t.isWildcard = true;
+            // Fake Okeys are always wildcards
+            if (t.isFakeOkey) {
+                t.isWildcard = true;
+            }
+            // Real tiles matching the Okey value and color are wildcards
+            else if (t.value === okeyValue && t.color === okeyColor) {
+                t.isWildcard = true;
+            }
             return t;
         });
 
@@ -298,62 +310,81 @@ const App = () => {
     const simulateBotTurns = async () => {
         if (botsPlayingRef.current) return;
         botsPlayingRef.current = true;
+
+        // Use functional state updates or refs to avoid stale deck/piles in the closure
+        const getLatestState = () => {
+            // We can use a trick to get the latest state by calling setState with a callback
+            // But since we are in an async loop, we'll track the sequential changes in a local object
+            // and update the real state after each bot or at the end.
+            return { deck, playerDiscardPile, rightDiscardPile, topDiscardPile, discardPile };
+        };
+
+        // We'll track local copies to ensure uniqueness during the sequential bot turns
+        let currentDeck = [...deck];
+        let currentPlayerDiscard = [...playerDiscardPile];
+        let currentRightDiscard = [...rightDiscardPile];
+        let currentTopDiscard = [...topDiscardPile];
+        let currentDiscardPile = [...discardPile];
+
         const setBotActive = (idx: number) => setOpponents(prev => prev.map((p, i) => ({ ...p, isActive: i === idx })));
 
-        // Right Bot (Marcus)
+        // --- Right Bot (Marcus) ---
         setBotActive(2); await new Promise(r => setTimeout(r, 800));
-        const fromDiscardR = (playerDiscardPile.length > 0 && Math.random() < 0.3);
+        const fromDiscardR = (currentPlayerDiscard.length > 0 && Math.random() < 0.3);
         let tileR: TileData;
         if (fromDiscardR) {
-            tileR = playerDiscardPile[playerDiscardPile.length - 1];
-            setPlayerDiscardPile(prev => prev.slice(0, -1));
+            tileR = currentPlayerDiscard.pop()!;
+            setPlayerDiscardPile([...currentPlayerDiscard]);
         } else {
-            tileR = deck[deck.length - 1];
-            setDeck(prev => prev.slice(0, -1));
+            tileR = currentDeck.pop()!;
+            setDeck([...currentDeck]);
         }
         const sourceSelectorR = fromDiscardR ? '[data-target="discard-zone"]' : '[data-source="draw-deck"]';
         await new Promise<void>(res => animateMove(sourceSelectorR, '[data-source="opponent-avatar-right"]', tileR, () => res()));
         await new Promise(r => setTimeout(r, 400));
         await new Promise<void>(res => animateMove('[data-source="opponent-avatar-right"]', '[data-target="opponent-drop-top"]', tileR, () => {
-            setRightDiscardPile(prev => [...prev, tileR]);
+            currentRightDiscard.push(tileR);
+            setRightDiscardPile([...currentRightDiscard]);
             res();
         }));
 
-        // Top Bot (Victor)
+        // --- Top Bot (Victor) ---
         setBotActive(0); await new Promise(r => setTimeout(r, 800));
-        const fromDiscardT = (rightDiscardPile.length > 0 && Math.random() < 0.3);
+        const fromDiscardT = (currentRightDiscard.length > 0 && Math.random() < 0.3);
         let tileT: TileData;
         if (fromDiscardT) {
-            tileT = rightDiscardPile[rightDiscardPile.length - 1];
-            setRightDiscardPile(prev => prev.slice(0, -1));
+            tileT = currentRightDiscard.pop()!;
+            setRightDiscardPile([...currentRightDiscard]);
         } else {
-            tileT = deck[deck.length - 1];
-            setDeck(prev => prev.slice(0, -1));
+            tileT = currentDeck.pop()!;
+            setDeck([...currentDeck]);
         }
         const sourceSelectorT = fromDiscardT ? '[data-target="opponent-drop-top"]' : '[data-source="draw-deck"]';
         await new Promise<void>(res => animateMove(sourceSelectorT, '[data-source="opponent-avatar-top"]', tileT, () => res()));
         await new Promise(r => setTimeout(r, 400));
         await new Promise<void>(res => animateMove('[data-source="opponent-avatar-top"]', '[data-target="opponent-drop-left"]', tileT, () => {
-            setTopDiscardPile(prev => [...prev, tileT]);
+            currentTopDiscard.push(tileT);
+            setTopDiscardPile([...currentTopDiscard]);
             res();
         }));
 
-        // Left Bot (Elena)
+        // --- Left Bot (Elena) ---
         setBotActive(1); await new Promise(r => setTimeout(r, 800));
-        const fromDiscardL = (topDiscardPile.length > 0 && Math.random() < 0.3);
+        const fromDiscardL = (currentTopDiscard.length > 0 && Math.random() < 0.3);
         let tileL: TileData;
         if (fromDiscardL) {
-            tileL = topDiscardPile[topDiscardPile.length - 1];
-            setTopDiscardPile(prev => prev.slice(0, -1));
+            tileL = currentTopDiscard.pop()!;
+            setTopDiscardPile([...currentTopDiscard]);
         } else {
-            tileL = deck[deck.length - 1];
-            setDeck(prev => prev.slice(0, -1));
+            tileL = currentDeck.pop()!;
+            setDeck([...currentDeck]);
         }
         const sourceSelectorL = fromDiscardL ? '[data-target="opponent-drop-left"]' : '[data-source="draw-deck"]';
         await new Promise<void>(res => animateMove(sourceSelectorL, '[data-source="opponent-avatar-left"]', tileL, () => res()));
         await new Promise(r => setTimeout(r, 400));
         await new Promise<void>(res => animateMove('[data-source="opponent-avatar-left"]', '[data-target="discard-pile"]', tileL, () => {
-            setDiscardPile(prev => [...prev, tileL]);
+            currentDiscardPile.push(tileL);
+            setDiscardPile([...currentDiscardPile]);
             res();
         }));
 

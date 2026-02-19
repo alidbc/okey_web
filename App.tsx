@@ -465,9 +465,9 @@ const App = () => {
                                         </div>
 
                                         <div className="mt-auto w-full flex flex-col items-center pb-4">
-                                            {/* Local Player & Takeable Pile (Above Rack) */}
-                                            <div className="w-full max-w-[800px] flex items-end justify-between px-6 mb-2 relative">
-                                                {/* Discard Pile Target (On Player's LEFT) */}
+                                            {/* Local Player & Takeable Pile (Centered Above Rack) */}
+                                            <div className="w-full max-w-[800px] flex items-center justify-center gap-6 mb-2 relative z-30">
+                                                {/* Discard Pile Target (Takeable by Player) */}
                                                 <div
                                                     className={`relative group w-[65px] h-[90px] border-2 border-dashed border-white/10 rounded-sm flex items-center justify-center transition-all bg-black/20
                                                         ${turnPhase === TurnPhase.DRAW && discardPile.length > 0 ? 'ring-2 ring-yellow-400 cursor-pointer hover:bg-white/10 animate-pulse' : ''}
@@ -484,7 +484,7 @@ const App = () => {
                                                     )}
                                                 </div>
 
-                                                {/* Local Player Nameplate (On Player's RIGHT) */}
+                                                {/* Local Player Nameplate */}
                                                 <div className={`flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-sm border-2 transition-all duration-300 ${turnPhase !== TurnPhase.WAITING ? 'border-yellow-400/80 shadow-[0_0_20px_rgba(250,204,21,0.3)] bg-yellow-900/20' : 'border-white/10'}`}>
                                                     <div className="relative">
                                                         <img

@@ -1,0 +1,70 @@
+[gd_scene load_steps=3 format=3 uid="uid://deck_ui_scene"]
+
+[ext_resource type="Script" path="res://UI/Scripts/DeckUI.cs" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_deck_bg"]
+bg_color = Color(0.164706, 0.101961, 0.0392157, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 1, 1, 0.1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 5
+
+[node name="DeckUI" type="PanelContainer"]
+custom_minimum_size = Vector2(65, 90)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -32.5
+offset_top = -45.0
+offset_right = 32.5
+offset_bottom = 45.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_deck_bg")
+script = ExtResource("1_script")
+
+[node name="InnerBorder" type="ReferenceRect" parent="."]
+layout_mode = 2
+border_color = Color(1, 1, 1, 0.05)
+border_width = 1.0
+editor_only = false
+
+[node name="CircleContainer" type="CenterContainer" parent="."]
+layout_mode = 2
+
+[node name="Circle" type="Panel" parent="CircleContainer"]
+modulate = Color(1, 1, 1, 0.3)
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.992157, 0.898039, 0.517647, 1)
+theme_override_fonts/font = null
+theme_override_font_sizes/font_size = 12
+text = "OKEY"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CountBadge" type="PanelContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 0
+
+[node name="Label" type="Label" parent="CountBadge"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "106"
+horizontal_alignment = 1
+vertical_alignment = 1

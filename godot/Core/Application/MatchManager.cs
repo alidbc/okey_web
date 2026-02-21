@@ -23,6 +23,8 @@ public class MatchManager
     public Dictionary<string, List<Tile>> PlayerDiscardPiles { get; private set; }
 
     public event Action OnGameStateChanged;
+    public event Action<string, Tile, bool> OnTileDrawn;
+    public event Action<string, Tile> OnTileDiscarded;
 
     public MatchManager()
     {
@@ -93,6 +95,7 @@ public class MatchManager
         Players[CurrentPlayerIndex].AddTileToFirstEmptySlot(drawn);
         CurrentPhase = TurnPhase.Discard;
         
+        OnTileDrawn?.Invoke(playerId, drawn, false);
         OnGameStateChanged?.Invoke();
         return true;
     }
@@ -102,16 +105,20 @@ public class MatchManager
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Draw || Players[CurrentPlayerIndex].Id != playerId)
             return false;
             
-        // Assuming drawing from the previous player's discard pile or center discard
-        // In the react code it simply drew from `discardPile` (center)
-        if (DiscardPile.Count == 0) return false;
+        // In Okey, you draw from the player to your left (the previous player in turn order)
+        int leftPlayerIndex = (CurrentPlayerIndex - 1 + Players.Count) % Players.Count;
+        string leftPlayerId = Players[leftPlayerIndex].Id;
+        
+        var leftPile = PlayerDiscardPiles[leftPlayerId];
+        if (leftPile.Count == 0) return false;
 
-        Tile drawn = DiscardPile[^1];
-        DiscardPile.RemoveAt(DiscardPile.Count - 1);
+        Tile drawn = leftPile[^1];
+        leftPile.RemoveAt(leftPile.Count - 1);
         
         Players[CurrentPlayerIndex].AddTileToFirstEmptySlot(drawn);
         CurrentPhase = TurnPhase.Discard;
         
+        OnTileDrawn?.Invoke(playerId, drawn, true);
         OnGameStateChanged?.Invoke();
         return true;
     }
@@ -128,6 +135,7 @@ public class MatchManager
         // Or if it's the center discard based on the UI
         PlayerDiscardPiles[playerId].Add(tileToDiscard);
         
+        OnTileDiscarded?.Invoke(playerId, tileToDiscard);
         NextTurn();
         return true;
     }

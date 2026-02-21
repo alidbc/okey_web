@@ -17,12 +17,12 @@ public partial class TileUI : TextureRect
     private Label _numberLabel;
     private TextureRect _heartIcon;
     private TextureRect _fakeOkeyIcon;
+    
+    private bool _isReady = false;
 
     public override void _Ready()
     {
-        _numberLabel = GetNodeOrNull<Label>("ShadowRoot/ContentContainer/NumberLabel");
-        _heartIcon = GetNodeOrNull<TextureRect>("ShadowRoot/ContentContainer/HeartIcon");
-        _fakeOkeyIcon = GetNodeOrNull<TextureRect>("ShadowRoot/ContentContainer/FakeOkeyIcon");
+        ForceReady();
         
         // Background texture is assigned via tscn ExtResource now, but we keep fallback just in case
         if (Texture == null)
@@ -35,8 +35,20 @@ public partial class TileUI : TextureRect
         }
     }
 
+    public void ForceReady()
+    {
+        if (_isReady) return;
+        
+        _numberLabel = GetNodeOrNull<Label>("ShadowRoot/ContentContainer/NumberLabel");
+        _heartIcon = GetNodeOrNull<TextureRect>("ShadowRoot/ContentContainer/HeartIcon");
+        _fakeOkeyIcon = GetNodeOrNull<TextureRect>("ShadowRoot/ContentContainer/FakeOkeyIcon");
+        
+        _isReady = true;
+    }
+
     public void SetTileData(Tile tile)
     {
+        ForceReady(); // Ensure nodes are populated if called before Godot's internal _Ready
         TileData = tile;
         UpdateVisuals();
     }
@@ -103,15 +115,33 @@ public partial class TileUI : TextureRect
     {
         if (TileData == null) return default;
         
-        var preview = new TextureRect
-        {
-            Texture = Texture,
-            ExpandMode = ExpandModeEnum.IgnoreSize,
-            CustomMinimumSize = CustomMinimumSize,
-            Modulate = new Color(1, 1, 1, 0.9f)
-        };
+        // 1. Setup the preview visuals
+        Control dragWrapper = new Control();
+        var preview = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn").Instantiate<TileUI>();
         
-        SetDragPreview(preview);
-        return this; // Passed into _DropData
+        preview.SetTileData(TileData);
+        preview.CustomMinimumSize = CustomMinimumSize;
+        preview.Size = Size;
+        preview.Modulate = new Color(1, 1, 1, 0.85f);
+        
+        // Offset the preview by half its size so the mouse holds the center of the tile
+        preview.Position = -Size / 2f;
+        dragWrapper.AddChild(preview);
+        
+        SetDragPreview(dragWrapper);
+        
+        // 2. Give visual feedback that the original tile was grabbed
+        Modulate = new Color(1, 1, 1, 0.2f);
+        
+        return this; // The Variant data passed into _DropData (sending the dragging node itself)
+    }
+
+    public override void _Notification(int what)
+    {
+        // Restore tile visibility if the drag successfully drops or gets cancelled
+        if (what == NotificationDragEnd)
+        {
+            UpdateVisuals(); // This resets Modulate based on BaseModulate and TileData
+        }
     }
 }

@@ -20,10 +20,13 @@ grow_horizontal = 2
 grow_vertical = 2
 expand_mode = 1
 stretch_mode = 5
+mouse_filter = 1
+mouse_default_cursor_shape = 2
 script = ExtResource("1_tile_script")
 texture = ExtResource("4_bg")
 
 [node name="ShadowRoot" type="Control" parent="."]
+mouse_filter = 2
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -32,6 +35,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="ContentContainer" type="VBoxContainer" parent="ShadowRoot"]
+mouse_filter = 2
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -42,6 +46,7 @@ theme_override_constants/separation = 0
 alignment = 1
 
 [node name="NumberLabel" type="Label" parent="ShadowRoot/ContentContainer"]
+mouse_filter = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.45)
@@ -55,6 +60,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="HeartIcon" type="TextureRect" parent="ShadowRoot/ContentContainer"]
+mouse_filter = 2
 custom_minimum_size = Vector2(20, 20)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -63,6 +69,7 @@ expand_mode = 1
 stretch_mode = 5
 
 [node name="FakeOkeyIcon" type="TextureRect" parent="ShadowRoot/ContentContainer"]
+mouse_filter = 2
 visible = false
 custom_minimum_size = Vector2(36, 36)
 layout_mode = 2

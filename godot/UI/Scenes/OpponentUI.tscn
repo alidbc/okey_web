@@ -52,12 +52,14 @@ offset_right = 240.0
 offset_bottom = 90.0
 theme_override_constants/separation = 16
 alignment = 1
+mouse_filter = 1
 script = ExtResource("1_script")
 
 [node name="Nameplate" type="PanelContainer" parent="."]
 custom_minimum_size = Vector2(150, 60)
 layout_mode = 2
 size_flags_vertical = 4
+mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
 [node name="HBoxContainer" type="HBoxContainer" parent="Nameplate"]
@@ -132,4 +134,5 @@ text = "Level 1"
 [node name="DropSlot" type="ColorRect" parent="."]
 custom_minimum_size = Vector2(65, 90)
 layout_mode = 2
+mouse_filter = 2
 color = Color(0, 0, 0, 0.2)

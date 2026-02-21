@@ -62,7 +62,7 @@ public partial class RackUI : Control
 		
 		for (int i = 0; i < 26; i++)
 		{
-			var slot = new PanelContainer();
+			var slot = new RackSlotUI();
 			// Fluid slot scaling (handled by HBoxContainer expand tags), but enforce ratio
 			slot.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			slot.SizeFlagsVertical = SizeFlags.ExpandFill;
@@ -71,8 +71,10 @@ public partial class RackUI : Control
 			slot.AddThemeStyleboxOverride("panel", emptyStyle);
 			
 			// Allow slots to receive drops
-			slot.SetScript(ResourceLoader.Load("res://UI/Scripts/RackSlotUI.cs"));
-			slot.Set("SlotIndex", i);
+			slot.SlotIndex = i;
+			
+			// Connect the drop signal to handle swaps
+			slot.Connect("TileMoved", new Callable(this, nameof(OnTileMoved)));
 			
 			if (i < 13)
 			{
@@ -107,32 +109,22 @@ public partial class RackUI : Control
 			_slots[i].SetTileData(tile);
 		}
 	}
-}
 
-// A simple script to attach to each rack slot to handle dropping
-public partial class RackSlotUI : PanelContainer
-{
-	public int SlotIndex { get; set; }
-	
-	// Check if what is dragged is a TileUI
-	public override bool _CanDropData(Vector2 atPosition, Variant data)
+	private void OnTileMoved(int fromIndex, int toIndex)
 	{
-		return data.As<Node>() is TileUI;
-	}
-
-	public override void _DropData(Vector2 atPosition, Variant data)
-	{
-		var draggedTileUI = data.As<TileUI>();
-		
-		// Find if it came from another slot
-		var fromSlot = draggedTileUI.GetParent() as RackSlotUI;
-		if (fromSlot != null)
+		if (_playerData != null)
 		{
-			// Execute move logic (signal to Main.cs or directly via MatchManager if passed down)
-			EmitSignal(nameof(TileMoved), fromSlot.SlotIndex, SlotIndex);
+			_playerData.MoveTile(fromIndex, toIndex);
+			RefreshVisuals();
 		}
 	}
 
-	[Signal]
-	public delegate void TileMovedEventHandler(int fromIndex, int toIndex);
+	public Control GetSlotNode(int index)
+	{
+		if (index >= 0 && index < _slots.Count)
+		{
+			return _slots[index].GetParent() as Control;
+		}
+		return null;
+	}
 }

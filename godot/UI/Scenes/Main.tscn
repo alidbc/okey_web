@@ -4,7 +4,8 @@
 [ext_resource type="PackedScene" uid="uid://rack_ui_scene" path="res://UI/Scenes/RackUI.tscn" id="2_rack_scene"]
 [ext_resource type="PackedScene" uid="uid://board_center_scene" path="res://UI/Scenes/BoardCenterUI.tscn" id="3_board_center"]
 [ext_resource type="Texture2D" path="res://Assets/avatar.png" id="4_avatar"]
-[ext_resource type="PackedScene" uid="uid://opponent_ui_scene" path="res://UI/Scenes/OpponentUI.tscn" id="5_opponent"]
+[ext_resource type="Script" path="res://UI/Scripts/DiscardZoneUI.cs" id="5_discard"]
+[ext_resource type="PackedScene" uid="uid://opponent_ui_scene" path="res://UI/Scenes/OpponentUI.tscn" id="6_opponent"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nameplate"]
 bg_color = Color(0.360784, 0.227451, 0.129412, 1)
@@ -83,7 +84,7 @@ offset_top = 20.0
 offset_bottom = 120.0
 grow_horizontal = 2
 
-[node name="TopOpponent" parent="TopOpponentArea" instance=ExtResource("5_opponent")]
+[node name="TopOpponent" parent="TopOpponentArea" instance=ExtResource("6_opponent")]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -112,14 +113,14 @@ alignment = 1
 layout_mode = 2
 alignment = 1
 
-[node name="LeftOpponent" parent="CenterLayout/MiddleRow" instance=ExtResource("5_opponent")]
+[node name="LeftOpponent" parent="CenterLayout/MiddleRow" instance=ExtResource("6_opponent")]
 layout_mode = 2
 
 [node name="BoardCenter" parent="CenterLayout/MiddleRow" instance=ExtResource("3_board_center")]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="RightOpponent" parent="CenterLayout/MiddleRow" instance=ExtResource("5_opponent")]
+[node name="RightOpponent" parent="CenterLayout/MiddleRow" instance=ExtResource("6_opponent")]
 layout_mode = 2
 
 [node name="PlayerElementsRow" type="HBoxContainer" parent="CenterLayout"]
@@ -131,8 +132,11 @@ alignment = 1
 custom_minimum_size = Vector2(65, 90)
 layout_mode = 2
 color = Color(0, 0, 0, 0.2)
+mouse_filter = 1
+script = ExtResource("5_discard")
 
 [node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/PlayerElementsRow/DiscardPileTarget"]
+mouse_filter = 2
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

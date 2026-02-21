@@ -60,4 +60,15 @@ public partial class DeckUI : PanelContainer
             _countLabel.Text = count.ToString();
         }
     }
+
+    public override void _GuiInput(InputEvent @event)
+    {
+        if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
+        {
+            EmitSignal(nameof(DeckClicked));
+        }
+    }
+
+    [Signal]
+    public delegate void DeckClickedEventHandler();
 }

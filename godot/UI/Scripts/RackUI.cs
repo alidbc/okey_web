@@ -13,9 +13,12 @@ public partial class RackUI : Control
 	private List<TileUI> _slots = new();
 	
 	// We get a reference to the actual HBoxContainer in the scene
-			private HBoxContainer _topRow;
+	private HBoxContainer _topRow;
 	private HBoxContainer _bottomRow;
 	private TextureRect _rackBackgroundImage;
+
+	[Export] public float TopRowShift = 30.0f; 
+	[Export] public float BottomRowShift = 33.0f;
 
 	public override void _Ready()
 	{
@@ -58,40 +61,29 @@ public partial class RackUI : Control
 
 		// Okey has 26 rack slots per player (2 rows of 13)
 		// Create an empty style box ONCE to share
-		StyleBoxEmpty emptyStyle = new StyleBoxEmpty();
+		StyleBoxFlat topStyle = new StyleBoxFlat { BgColor = new Color(0,0,0,0), ContentMarginTop = TopRowShift };
+		StyleBoxFlat bottomStyle = new StyleBoxFlat { BgColor = new Color(0,0,0,0), ContentMarginTop = BottomRowShift };
 		
 		for (int i = 0; i < 26; i++)
 		{
 			var slot = new RackSlotUI();
-			// Fluid slot scaling (handled by HBoxContainer expand tags), but enforce ratio
 			slot.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			slot.SizeFlagsVertical = SizeFlags.ExpandFill;
 			
-			// Invisible background for drops
-			slot.AddThemeStyleboxOverride("panel", emptyStyle);
+			// Apply the appropriate shift style per row
+			slot.AddThemeStyleboxOverride("panel", i < 13 ? topStyle : bottomStyle);
 			
-			// Allow slots to receive drops
 			slot.SlotIndex = i;
-			
-			// Connect the drop signal to handle swaps
 			slot.Connect("TileMoved", new Callable(this, nameof(OnTileMoved)));
 			slot.Connect("DrawToSlot", new Callable(this, nameof(OnDrawToSlot)));
 			
-			if (i < 13)
-			{
-				_topRow.AddChild(slot);
-			}
-			else
-			{
-				_bottomRow.AddChild(slot);
-			}
+			if (i < 13) _topRow.AddChild(slot);
+			else _bottomRow.AddChild(slot);
 			
 			var tileUI = TileScene.Instantiate<TileUI>();
-			
-			// Tell the tile to expand fully inside the slot (like React fluid=true)
 			tileUI.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			tileUI.SizeFlagsVertical = SizeFlags.ExpandFill;
-			tileUI.CustomMinimumSize = new Vector2(0, 0); // Allow shrinking
+			tileUI.CustomMinimumSize = new Vector2(0, 0);
 			
 			slot.AddChild(tileUI);
 			_slots.Add(tileUI);

@@ -9,6 +9,7 @@ public partial class DiscardZoneUI : PanelContainer
     public bool HasTile { get; set; } = false;
     public Tile CurrentTile { get; set; }
     public bool IsValidDiscardTarget { get; set; } = false;
+    public bool IsInteractable { get; set; } = false;
 
     // Accept drops if it's a tile coming from the rack
     public override bool _CanDropData(Vector2 atPosition, Variant data)
@@ -43,6 +44,7 @@ public partial class DiscardZoneUI : PanelContainer
 
     public override void _GuiInput(InputEvent @event)
     {
+        if (!IsInteractable) return;
         if (@event is InputEventMouseButton mouseEvent && !mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
         {
             EmitSignal(nameof(DiscardPileClicked));
@@ -51,7 +53,7 @@ public partial class DiscardZoneUI : PanelContainer
 
     public override Variant _GetDragData(Vector2 atPosition)
     {
-        if (!HasTile) return default;
+        if (!HasTile || !IsInteractable) return default;
 
         GD.Print("DiscardZoneUI: _GetDragData called");
 

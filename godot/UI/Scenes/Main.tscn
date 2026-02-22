@@ -1,13 +1,17 @@
-[gd_scene load_steps=7 format=3 uid="uid://main_ui_scene"]
+[gd_scene load_steps=11 format=3 uid="uid://uk5d2h2gqpaq"]
 
-[ext_resource type="Script" path="res://UI/Scripts/MainEngine.cs" id="1_main_script"]
-[ext_resource type="PackedScene" uid="uid://rack_ui_scene" path="res://UI/Scenes/RackUI.tscn" id="2_rack_scene"]
-[ext_resource type="PackedScene" uid="uid://board_center_scene" path="res://UI/Scenes/BoardCenterUI.tscn" id="3_board_center"]
-[ext_resource type="Texture2D" path="res://Assets/avatar.png" id="4_avatar"]
-[ext_resource type="Script" path="res://UI/Scripts/DiscardZoneUI.cs" id="5_discard"]
-[ext_resource type="PackedScene" uid="uid://opponent_ui_scene" path="res://UI/Scenes/OpponentUI.tscn" id="6_opponent"]
+[ext_resource type="Script" uid="uid://c13ae7dnr76m3" path="res://UI/Scripts/MainEngine.cs" id="1_main_script"]
+[ext_resource type="PackedScene" path="res://UI/Scenes/RackUI.tscn" id="2_rack_scene"]
+[ext_resource type="PackedScene" path="res://UI/Scenes/BoardCenterUI.tscn" id="3_board_center"]
+[ext_resource type="Texture2D" uid="uid://d8nqddynsr2o" path="res://Assets/avatar.png" id="4_avatar"]
+[ext_resource type="Script" uid="uid://cgnubvet1lqjv" path="res://UI/Scripts/DiscardZoneUI.cs" id="5_discard"]
+[ext_resource type="PackedScene" path="res://UI/Scenes/OpponentUI.tscn" id="6_opponent"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nameplate"]
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
 bg_color = Color(0.360784, 0.227451, 0.129412, 1)
 border_width_left = 2
 border_width_top = 2
@@ -18,19 +22,15 @@ corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
-content_margin_left = 16.0
-content_margin_top = 8.0
-content_margin_right = 16.0
-content_margin_bottom = 8.0
 shadow_color = Color(0, 0, 0, 0.2)
 shadow_size = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_bg"]
 bg_color = Color(0.2, 0.2, 0.2, 1)
-corner_radius_top_left = 24
-corner_radius_top_right = 24
-corner_radius_bottom_right = 24
-corner_radius_bottom_left = 24
+corner_radius_top_left = 27
+corner_radius_top_right = 27
+corner_radius_bottom_right = 27
+corner_radius_bottom_left = 27
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_border"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -39,10 +39,10 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.721569, 0.52549, 0.0431373, 1)
-corner_radius_top_left = 24
-corner_radius_top_right = 24
-corner_radius_bottom_right = 24
-corner_radius_bottom_left = 24
+corner_radius_top_left = 27
+corner_radius_top_right = 27
+corner_radius_bottom_right = 27
+corner_radius_bottom_left = 27
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_online"]
 bg_color = Color(0.133, 0.773, 0.369, 1)
@@ -56,7 +56,7 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
-[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel")]
+[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -66,6 +66,13 @@ grow_vertical = 2
 script = ExtResource("1_main_script")
 LocalRackUI = NodePath("BottomArea/RackUI")
 StatusLabel = NodePath("CenterLayout/InstructionBox/InstructionLabel")
+TopOpponent = NodePath("CenterLayout/TopRow/TopOpponent")
+LeftOpponent = NodePath("CenterLayout/MiddleRow/LeftOpponent")
+RightOpponent = NodePath("CenterLayout/MiddleRow/RightOpponent")
+DZ1 = NodePath("CenterLayout/BottomRow/DZ1")
+DZ2 = NodePath("CenterLayout/TopRow/DZ2")
+DZ3 = NodePath("CenterLayout/TopRow/DZ3")
+DZ4 = NodePath("CenterLayout/BottomRow/DZ4")
 
 [node name="Background_Felt" type="ColorRect" parent="."]
 layout_mode = 1
@@ -76,23 +83,6 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.0862745, 0.196078, 0.129412, 1)
 
-[node name="TopOpponentArea" type="Control" parent="."]
-layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_top = 20.0
-offset_bottom = 120.0
-grow_horizontal = 2
-
-[node name="TopOpponent" parent="TopOpponentArea" instance=ExtResource("6_opponent")]
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -120.0
-offset_right = 120.0
-grow_horizontal = 2
-
 [node name="CenterLayout" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
@@ -100,14 +90,54 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -400.0
-offset_top = -250.0
-offset_right = 400.0
-offset_bottom = 50.0
+offset_left = -450.0
+offset_top = -335.0
+offset_right = 450.0
+offset_bottom = 37.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 32
+theme_override_constants/separation = 24
 alignment = 1
+
+[node name="TopRow" type="HBoxContainer" parent="CenterLayout"]
+layout_mode = 2
+theme_override_constants/separation = 40
+alignment = 1
+
+[node name="DZ3" type="PanelContainer" parent="CenterLayout/TopRow"]
+custom_minimum_size = Vector2(65, 90)
+layout_mode = 2
+script = ExtResource("5_discard")
+
+[node name="ColorRect" type="ColorRect" parent="CenterLayout/TopRow/DZ3"]
+layout_mode = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.2)
+
+[node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/TopRow/DZ3"]
+layout_mode = 2
+mouse_filter = 2
+border_color = Color(1, 1, 1, 0.1)
+editor_only = false
+
+[node name="TopOpponent" parent="CenterLayout/TopRow" instance=ExtResource("6_opponent")]
+layout_mode = 2
+
+[node name="DZ2" type="PanelContainer" parent="CenterLayout/TopRow"]
+custom_minimum_size = Vector2(65, 90)
+layout_mode = 2
+script = ExtResource("5_discard")
+
+[node name="ColorRect" type="ColorRect" parent="CenterLayout/TopRow/DZ2"]
+layout_mode = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.2)
+
+[node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/TopRow/DZ2"]
+layout_mode = 2
+mouse_filter = 2
+border_color = Color(1, 1, 1, 0.1)
+editor_only = false
 
 [node name="MiddleRow" type="HBoxContainer" parent="CenterLayout"]
 layout_mode = 2
@@ -123,44 +153,43 @@ size_flags_horizontal = 3
 [node name="RightOpponent" parent="CenterLayout/MiddleRow" instance=ExtResource("6_opponent")]
 layout_mode = 2
 
-[node name="PlayerElementsRow" type="HBoxContainer" parent="CenterLayout"]
+[node name="BottomRow" type="HBoxContainer" parent="CenterLayout"]
 layout_mode = 2
 theme_override_constants/separation = 40
 alignment = 1
 
-[node name="DiscardPileTarget" type="PanelContainer" parent="CenterLayout/PlayerElementsRow"]
+[node name="DZ4" type="PanelContainer" parent="CenterLayout/BottomRow"]
 custom_minimum_size = Vector2(65, 90)
 layout_mode = 2
-mouse_filter = 0
 script = ExtResource("5_discard")
 
-[node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/PlayerElementsRow/DiscardPileTarget"]
+[node name="ColorRect" type="ColorRect" parent="CenterLayout/BottomRow/DZ4"]
+layout_mode = 2
 mouse_filter = 2
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+color = Color(0, 0, 0, 0.2)
+
+[node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/BottomRow/DZ4"]
+layout_mode = 2
+mouse_filter = 2
 border_color = Color(1, 1, 1, 0.1)
 editor_only = false
 
-[node name="Nameplate" type="PanelContainer" parent="CenterLayout/PlayerElementsRow"]
-custom_minimum_size = Vector2(170, 60)
+[node name="Nameplate" type="PanelContainer" parent="CenterLayout/BottomRow"]
+custom_minimum_size = Vector2(187, 66)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_styles/panel = SubResource("StyleBoxFlat_nameplate")
 
-[node name="HBoxContainer" type="HBoxContainer" parent="CenterLayout/PlayerElementsRow/Nameplate"]
+[node name="HBoxContainer" type="HBoxContainer" parent="CenterLayout/BottomRow/Nameplate"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="AvatarContainer" type="Control" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer"]
-custom_minimum_size = Vector2(48, 48)
+[node name="AvatarContainer" type="Control" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer"]
+custom_minimum_size = Vector2(53, 53)
 layout_mode = 2
 size_flags_vertical = 4
 
-[node name="AvatarMask" type="Panel" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer/AvatarContainer"]
+[node name="AvatarMask" type="Panel" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
 clip_children = 1
 layout_mode = 1
 anchors_preset = 15
@@ -170,7 +199,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_bg")
 
-[node name="AvatarImage" type="TextureRect" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer/AvatarContainer/AvatarMask"]
+[node name="AvatarImage" type="TextureRect" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer/AvatarMask"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -181,7 +210,7 @@ texture = ExtResource("4_avatar")
 expand_mode = 1
 stretch_mode = 6
 
-[node name="AvatarBorder" type="Panel" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer/AvatarContainer"]
+[node name="AvatarBorder" type="Panel" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -190,7 +219,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_border")
 
-[node name="OnlineIndicator" type="Panel" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer/AvatarContainer"]
+[node name="OnlineIndicator" type="Panel" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
 custom_minimum_size = Vector2(12, 12)
 layout_mode = 1
 anchors_preset = 1
@@ -203,22 +232,38 @@ offset_bottom = 8.0
 grow_horizontal = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_online")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer"]
 layout_mode = 2
 theme_override_constants/separation = -2
 alignment = 1
 
-[node name="Name" type="Label" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer/VBoxContainer"]
+[node name="Name" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.992157, 0.964706, 0.823529, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 16
 text = "OkeyPro_99"
 
-[node name="Level" type="Label" parent="CenterLayout/PlayerElementsRow/Nameplate/HBoxContainer/VBoxContainer"]
+[node name="Level" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.5)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 12
 text = "LEVEL 42"
+
+[node name="DZ1" type="PanelContainer" parent="CenterLayout/BottomRow"]
+custom_minimum_size = Vector2(65, 90)
+layout_mode = 2
+script = ExtResource("5_discard")
+
+[node name="ColorRect" type="ColorRect" parent="CenterLayout/BottomRow/DZ1"]
+layout_mode = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.2)
+
+[node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/BottomRow/DZ1"]
+layout_mode = 2
+mouse_filter = 2
+border_color = Color(1, 1, 1, 0.1)
+editor_only = false
 
 [node name="InstructionBox" type="VBoxContainer" parent="CenterLayout"]
 layout_mode = 2

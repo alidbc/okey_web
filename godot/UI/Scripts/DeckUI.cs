@@ -7,6 +7,7 @@ namespace OkieRummyGodot.UI.Scripts;
 public partial class DeckUI : PanelContainer
 {
     public Func<Tile> TilePeeker { get; set; }
+    public bool IsInteractable { get; set; } = false;
     private Label _countLabel;
 
     public override void _Ready()
@@ -65,6 +66,7 @@ public partial class DeckUI : PanelContainer
 
     public override void _GuiInput(InputEvent @event)
     {
+        if (!IsInteractable) return;
         if (@event is InputEventMouseButton mouseEvent && !mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
         {
             EmitSignal(nameof(DeckClicked));
@@ -73,6 +75,7 @@ public partial class DeckUI : PanelContainer
 
     public override Variant _GetDragData(Vector2 atPosition)
     {
+        if (!IsInteractable) return default;
         GD.Print("DeckUI: _GetDragData called");
         
         var data = new Godot.Collections.Dictionary();

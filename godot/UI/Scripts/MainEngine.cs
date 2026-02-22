@@ -17,10 +17,14 @@ public partial class MainEngine : Control
     [Export] public OpponentUI TopOpponent;
     [Export] public OpponentUI LeftOpponent;
     [Export] public OpponentUI RightOpponent;
+
+    [Export] public DiscardZoneUI DZ1; // Local to Right
+    [Export] public DiscardZoneUI DZ2; // Right to Top
+    [Export] public DiscardZoneUI DZ3; // Top to Left
+    [Export] public DiscardZoneUI DZ4; // Left to Local
     
-    // Wire this up manually since NodePaths in C# export often break if modified externally
+    // Wire this up manually
     private BoardCenterUI _boardCenter;
-    private DiscardZoneUI _discardZone;
     private PanelContainer _localNameplate;
     private StyleBoxFlat _localActiveStyle;
     private StyleBoxFlat _localInactiveStyle;
@@ -28,27 +32,33 @@ public partial class MainEngine : Control
     // Used to route AI turns
     private Godot.Timer _botTimer;
 
-    private TileUI _localDiscardTile;
+    private TileUI[] _dzTiles = new TileUI[4];
     private int _activeAnimationsCount = 0;
 
     public override void _Ready()
     {
         _boardCenter = GetNodeOrNull<BoardCenterUI>("CenterLayout/MiddleRow/BoardCenter");
-        _discardZone = GetNodeOrNull<DiscardZoneUI>("CenterLayout/PlayerElementsRow/DiscardPileTarget");
         
-        if (_discardZone != null)
+        // Initialize DZ Tiles
+        DiscardZoneUI[] dzs = { DZ1, DZ2, DZ3, DZ4 };
+        PackedScene tileScene = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn");
+
+        for (int i = 0; i < 4; i++)
         {
-            _discardZone.Connect("TileDiscarded", new Callable(this, nameof(OnDiscardTileDropped)));
+            if (dzs[i] == null) continue;
             
-            // Spawn a visual tile inside the discard zone
-            _localDiscardTile = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn").Instantiate<TileUI>();
-            _localDiscardTile.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-            _localDiscardTile.SizeFlagsVertical = SizeFlags.ExpandFill;
-            _localDiscardTile.CustomMinimumSize = Vector2.Zero;
-            _localDiscardTile.Visible = false;
-            _localDiscardTile.MouseFilter = MouseFilterEnum.Ignore;
-            _discardZone.AddChild(_localDiscardTile);
+            dzs[i].Connect("TileDiscarded", new Callable(this, nameof(OnDiscardTileDropped)));
+            
+            _dzTiles[i] = tileScene.Instantiate<TileUI>();
+            _dzTiles[i].SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            _dzTiles[i].SizeFlagsVertical = SizeFlags.ExpandFill;
+            _dzTiles[i].CustomMinimumSize = Vector2.Zero;
+            _dzTiles[i].Visible = false;
+            _dzTiles[i].MouseFilter = MouseFilterEnum.Ignore;
+            dzs[i].AddChild(_dzTiles[i]);
         }
+        
+        if (DZ1 != null) DZ1.IsValidDiscardTarget = true;
         
         if (_boardCenter?.DeckCountBadge != null)
         {
@@ -56,7 +66,7 @@ public partial class MainEngine : Control
             _boardCenter.DeckCountBadge.TilePeeker = () => _matchManager.PeekDeck();
         }
         
-        _localNameplate = GetNodeOrNull<PanelContainer>("CenterLayout/PlayerElementsRow/Nameplate");
+        _localNameplate = GetNodeOrNull<PanelContainer>("CenterLayout/BottomRow/Nameplate");
         if (_localNameplate != null)
         {
             _localInactiveStyle = (StyleBoxFlat)_localNameplate.GetThemeStylebox("panel");
@@ -82,9 +92,9 @@ public partial class MainEngine : Control
         // In Okey, you draw from the player on your Left.
         // Visually, the player's discard zone sits on the left side of the screen.
         // You click "your" left discard pile to draw the tile *they* gave to *you*.
-        if (_discardZone != null) 
+        if (DZ4 != null) 
         {
-            _discardZone.Connect("DiscardPileClicked", new Callable(this, nameof(OnDrawFromDiscardPressed)));
+            DZ4.Connect("DiscardPileClicked", new Callable(this, nameof(OnDrawFromDiscardPressed)));
         }
 
         StartNewGame();
@@ -120,7 +130,8 @@ public partial class MainEngine : Control
         
         // Initialize Bots in UI (Assumes specific seating: local = 0, right = 1, top = 2, left = 3)
         RightOpponent?.Initialize(bot1, true); // true = reverse layout for right
-        if (RightOpponent != null) RightOpponent.IsValidDiscardTarget = true;
+        if (DZ1 != null) DZ1.IsValidDiscardTarget = _localPlayer.Id == _matchManager.Players[_matchManager.CurrentPlayerIndex].Id && _matchManager.CurrentPhase == TurnPhase.Discard;
+        if (RightOpponent != null) RightOpponent.IsValidDiscardTarget = false; // No longer a direct target
         
         TopOpponent?.Initialize(bot2, false);
         LeftOpponent?.Initialize(bot3, false);
@@ -162,6 +173,24 @@ public partial class MainEngine : Control
         {
             bool isLocalTurn = activePlayer.Id == _localPlayer.Id;
             _localNameplate.AddThemeStyleboxOverride("panel", isLocalTurn ? _localActiveStyle : _localInactiveStyle);
+            
+            // Manage Discarding
+            if (DZ1 != null) DZ1.IsValidDiscardTarget = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Discard;
+
+            // Manage Drawing
+            bool canDraw = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Draw;
+
+            if (_boardCenter?.DeckCountBadge != null)
+                _boardCenter.DeckCountBadge.IsInteractable = canDraw;
+
+            // DZ4 is the local player's draw source (the pile to their left)
+            if (DZ4 != null) DZ4.IsInteractable = canDraw;
+
+            // Reset interaction on other DZs just in case
+            if (DZ2 != null) DZ2.IsInteractable = false;
+            if (DZ3 != null) DZ3.IsInteractable = false;
+            // DZ1 is only for discarding, not for drawing for the local player.
+            if (DZ1 != null) DZ1.IsInteractable = false;
         }
 
         // If it's a bot's turn, trigger the timer
@@ -190,47 +219,46 @@ public partial class MainEngine : Control
 
     private void UpdateDiscardVisuals()
     {
-        // OKEY MAPPING LOGIC:
-        // You draw from the player to your LEFT.
-        // You discard for the player on your RIGHT.
+        if (_matchManager == null) return;
 
-        // 1. Local Player's "Draw Pile" (Left side of screen) = Bot 3's discards
-        if (_matchManager.PlayerDiscardPiles.TryGetValue("bot_3", out var leftPlayerPile) && leftPlayerPile.Count > 0)
-        {
-            var topTile = leftPlayerPile[^1];
-            _localDiscardTile?.SetTileData(topTile);
-            if (_localDiscardTile != null) _localDiscardTile.Visible = true;
-            if (_discardZone != null) 
-            {
-                _discardZone.HasTile = true;
-                _discardZone.CurrentTile = topTile;
-            }
-            // Also update the Left Bot's avatar slot just in case
-            LeftOpponent?.SetDiscardTile(topTile);
-        }
-        else if (_localDiscardTile != null)
-        {
-            _localDiscardTile.Visible = false;
-            if (_discardZone != null) _discardZone.HasTile = false;
-            LeftOpponent?.SetDiscardTile(null);
-        }
+        // Circular flow: 
+        // Local discards to DZ1. Bot1 draws from DZ1.
+        // Bot1 discards to DZ2. Bot2 draws from DZ2.
+        // Bot2 discards to DZ3. Bot3 draws from DZ3.
+        // Bot3 discards to DZ4. Local draws from DZ4.
         
-        // 2. Right Opponent's Slot = Local Player's discards (Bot 1 draws from Local)
-        if (_matchManager.PlayerDiscardPiles.TryGetValue(_localPlayer.Id, out var myPile) && myPile.Count > 0)
-            RightOpponent?.SetDiscardTile(myPile[^1]);
-        else
-            RightOpponent?.SetDiscardTile(null);
+        var dzNodes = new DiscardZoneUI[] { DZ1, DZ2, DZ3, DZ4 };
+        string[] playerIds = { "local_user", "bot_1", "bot_2", "bot_3" };
+
+        for (int i = 0; i < 4; i++)
+        {
+            string pid = playerIds[i];
+            _matchManager.PlayerDiscardPiles.TryGetValue(pid, out var pile);
+            var tile = pile?.LastOrDefault();
             
-        // 3. Top Opponent's Slot = Right Opponent's discards (Bot 2 draws from Bot 1)
-        if (_matchManager.PlayerDiscardPiles.TryGetValue("bot_1", out var rightPile) && rightPile.Count > 0)
-            TopOpponent?.SetDiscardTile(rightPile[^1]);
-        else
-            TopOpponent?.SetDiscardTile(null);
-            
-        // 4. Left Opponent's Slot = Top Opponent's discards (Bot 3 draws from Bot 2)
-        if (_matchManager.PlayerDiscardPiles.TryGetValue("bot_2", out var topPile) && topPile.Count > 0)
-            LeftOpponent?.SetDiscardTile(topPile[^1]);
-        // Note: we already used bot_3 discards for the local _discardZone above.
+            if (_dzTiles[i] != null)
+            {
+                if (tile == null) 
+                {
+                    _dzTiles[i].Visible = false;
+                    if (dzNodes[i] != null)
+                    {
+                        dzNodes[i].HasTile = false;
+                        dzNodes[i].CurrentTile = null;
+                    }
+                }
+                else
+                {
+                    _dzTiles[i].SetTileData(tile);
+                    _dzTiles[i].Visible = !_dzTiles[i].IsVisualSuppressed;
+                    if (dzNodes[i] != null)
+                    {
+                        dzNodes[i].HasTile = true;
+                        dzNodes[i].CurrentTile = tile;
+                    }
+                }
+            }
+        }
     }
 
     private async void ProcessBotTurn()
@@ -323,7 +351,7 @@ public partial class MainEngine : Control
             return;
         }
 
-        Control sourceNode = fromDiscard ? _discardZone : _boardCenter?.DeckCountBadge;
+        Control sourceNode = fromDiscard ? DZ4 : _boardCenter?.DeckCountBadge;
         Control targetNode = LocalRackUI?.GetSlotNode(targetIndex);
         TileUI targetTileUI = LocalRackUI?.GetTileUI(targetIndex);
         Tile drawnTile = _localPlayer.Rack[targetIndex];
@@ -423,10 +451,10 @@ public partial class MainEngine : Control
 
     private TileUI GetDiscardTileUIAtNode(Control node)
     {
-        if (node == _discardZone) return _localDiscardTile;
-        if (node is OpponentUI opp) return opp.GetDiscardTileUI();
-        // If it's a sub-node of OpponentUI (the drop slot)
-        if (node?.GetParent() is OpponentUI parentOpp) return parentOpp.GetDiscardTileUI();
+        if (node == DZ1) return _dzTiles[0];
+        if (node == DZ2) return _dzTiles[1];
+        if (node == DZ3) return _dzTiles[2];
+        if (node == DZ4) return _dzTiles[3];
         return null;
     }
 
@@ -441,20 +469,27 @@ public partial class MainEngine : Control
     private Control GetDiscardSourceForPlayer(string playerId)
     {
         // playerId draws from the player to their left
-        if (playerId == "bot_1") return _discardZone; // bot_1 draws from local discard
-        if (playerId == "bot_2") return RightOpponent?.GetDropSlotNode(); // bot_2 draws from bot_1
-        if (playerId == "bot_3") return TopOpponent?.GetDropSlotNode(); // bot_3 draws from bot_2
-        if (playerId == "local_user") return LeftOpponent?.GetDropSlotNode(); // local draws from bot_3
+        if (playerId == "bot_1") return DZ4; // bot_1 draws from LZ (provided by bot_3 or local? wait)
+        // Correction on flow:
+        // Local discards to DZ1. Bot1 draws from DZ1.
+        // Bot1 discards to DZ2. Bot2 draws from DZ2.
+        // Bot2 discards to DZ3. Bot3 draws from DZ3.
+        // Bot3 discards to DZ4. Local draws from DZ4.
+        
+        if (playerId == "bot_1") return DZ1; 
+        if (playerId == "bot_2") return DZ2; 
+        if (playerId == "bot_3") return DZ3; 
+        if (playerId == "local_user") return DZ4; 
         return null;
     }
 
     private Control GetDiscardTargetForPlayer(string playerId)
     {
         // playerId discards to the player to their right
-        if (playerId == "bot_1") return TopOpponent?.GetDropSlotNode(); // bot_1 discards to bot_2
-        if (playerId == "bot_2") return LeftOpponent?.GetDropSlotNode(); // bot_2 discards to bot_3
-        if (playerId == "bot_3") return _discardZone; // bot_3 discards to local draw pile
-        if (playerId == "local_user") return RightOpponent?.GetDropSlotNode(); // local discards to bot_1
+        if (playerId == "bot_1") return DZ2; 
+        if (playerId == "bot_2") return DZ3; 
+        if (playerId == "bot_3") return DZ4; 
+        if (playerId == "local_user") return DZ1; 
         return null;
     }
 
@@ -510,7 +545,7 @@ public partial class MainEngine : Control
         tween.TweenProperty(ghostTile, "global_position", targetPos, 0.4f);
         
         // Shrink slightly if throwing into discard
-        if (targetControl == _discardZone)
+        if (targetControl is DiscardZoneUI)
         {
             tween.Parallel().TweenProperty(ghostTile, "scale", new Vector2(0.9f, 0.9f), 0.4f);
         }

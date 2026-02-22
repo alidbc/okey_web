@@ -23,17 +23,28 @@ public class Player
         Rack = new Tile[26];
     }
 
-    public bool AddTileToFirstEmptySlot(Tile tile)
+    public int AddTileToFirstEmptySlot(Tile tile)
     {
         for (int i = 0; i < Rack.Length; i++)
         {
             if (Rack[i] == null)
             {
                 Rack[i] = tile;
-                return true;
+                return i;
             }
         }
-        return false;
+        return -1;
+    }
+
+    public int AddTileToSlot(Tile tile, int index)
+    {
+        if (index < 0 || index >= Rack.Length) return -1;
+        if (Rack[index] == null)
+        {
+            Rack[index] = tile;
+            return index;
+        }
+        return -1;
     }
 
     public bool MoveTile(int fromIndex, int toIndex)

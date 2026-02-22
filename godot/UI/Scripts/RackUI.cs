@@ -75,6 +75,7 @@ public partial class RackUI : Control
 			
 			// Connect the drop signal to handle swaps
 			slot.Connect("TileMoved", new Callable(this, nameof(OnTileMoved)));
+			slot.Connect("DrawToSlot", new Callable(this, nameof(OnDrawToSlot)));
 			
 			if (i < 13)
 			{
@@ -119,6 +120,11 @@ public partial class RackUI : Control
 		}
 	}
 
+	private void OnDrawToSlot(bool fromDiscard, int toIndex)
+	{
+		EmitSignal(nameof(DrawToSlot), fromDiscard, toIndex);
+	}
+
 	public Control GetSlotNode(int index)
 	{
 		if (index >= 0 && index < _slots.Count)
@@ -127,4 +133,16 @@ public partial class RackUI : Control
 		}
 		return null;
 	}
+
+	public TileUI GetTileUI(int index)
+	{
+		if (index >= 0 && index < _slots.Count)
+		{
+			return _slots[index];
+		}
+		return null;
+	}
+
+	[Signal]
+	public delegate void DrawToSlotEventHandler(bool fromDiscard, int toIndex);
 }

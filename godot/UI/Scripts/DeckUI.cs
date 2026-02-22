@@ -1,10 +1,12 @@
 using Godot;
+using OkieRummyGodot.Core.Domain;
 using System;
 
 namespace OkieRummyGodot.UI.Scripts;
 
 public partial class DeckUI : PanelContainer
 {
+    public Func<Tile> TilePeeker { get; set; }
     private Label _countLabel;
 
     public override void _Ready()
@@ -63,10 +65,37 @@ public partial class DeckUI : PanelContainer
 
     public override void _GuiInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
+        if (@event is InputEventMouseButton mouseEvent && !mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
         {
             EmitSignal(nameof(DeckClicked));
         }
+    }
+
+    public override Variant _GetDragData(Vector2 atPosition)
+    {
+        GD.Print("DeckUI: _GetDragData called");
+        
+        var data = new Godot.Collections.Dictionary();
+        data["type"] = "drawing";
+        data["fromDiscard"] = false;
+
+        // Visual preview - Use actual TileUI for Deck (user wants to see real value)
+        var preview = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn").Instantiate<TileUI>();
+        
+        Tile nextTile = TilePeeker?.Invoke();
+        preview.SetTileData(nextTile);
+        
+        preview.Modulate = new Color(1, 1, 1, 0.8f);
+        preview.CustomMinimumSize = new Vector2(65, 90);
+        preview.SetRotation(Mathf.DegToRad(5));
+
+        Control wrapper = new Control();
+        wrapper.AddChild(preview);
+        preview.Position = -preview.CustomMinimumSize / 2;
+
+        SetDragPreview(wrapper);
+
+        return data;
     }
 
     [Signal]

@@ -29,6 +29,7 @@ public partial class MainEngine : Control
     private Godot.Timer _botTimer;
 
     private TileUI _localDiscardTile;
+    private int _activeAnimationsCount = 0;
 
     public override void _Ready()
     {
@@ -45,12 +46,14 @@ public partial class MainEngine : Control
             _localDiscardTile.SizeFlagsVertical = SizeFlags.ExpandFill;
             _localDiscardTile.CustomMinimumSize = Vector2.Zero;
             _localDiscardTile.Visible = false;
+            _localDiscardTile.MouseFilter = MouseFilterEnum.Ignore;
             _discardZone.AddChild(_localDiscardTile);
         }
         
         if (_boardCenter?.DeckCountBadge != null)
         {
             _boardCenter.DeckCountBadge.Connect("DeckClicked", new Callable(this, nameof(OnDrawFromDeckPressed)));
+            _boardCenter.DeckCountBadge.TilePeeker = () => _matchManager.PeekDeck();
         }
         
         _localNameplate = GetNodeOrNull<PanelContainer>("CenterLayout/PlayerElementsRow/Nameplate");
@@ -109,10 +112,16 @@ public partial class MainEngine : Control
         _matchManager.StartGame();
         
         LocalRackUI?.Initialize(_localPlayer);
+        if (LocalRackUI != null)
+        {
+            LocalRackUI.Connect("DrawToSlot", new Callable(this, nameof(OnDrawToSlot)));
+        }
         _boardCenter?.SetIndicatorTile(_matchManager.IndicatorTile);
         
         // Initialize Bots in UI (Assumes specific seating: local = 0, right = 1, top = 2, left = 3)
         RightOpponent?.Initialize(bot1, true); // true = reverse layout for right
+        if (RightOpponent != null) RightOpponent.IsValidDiscardTarget = true;
+        
         TopOpponent?.Initialize(bot2, false);
         LeftOpponent?.Initialize(bot3, false);
         
@@ -125,6 +134,14 @@ public partial class MainEngine : Control
 
     private void HandleGameStateChanged()
     {
+        HandleGameStateChanged(false);
+    }
+
+    private void HandleGameStateChanged(bool force)
+    {
+        // Don't update the UI while a tile is flying, unless it's the final refresh
+        if (_activeAnimationsCount > 0) return;
+
         if (_matchManager.Status == GameStatus.Victory)
         {
             if (StatusLabel != null) StatusLabel.Text = "Victory! Someone won!";
@@ -180,14 +197,21 @@ public partial class MainEngine : Control
         // 1. Local Player's "Draw Pile" (Left side of screen) = Bot 3's discards
         if (_matchManager.PlayerDiscardPiles.TryGetValue("bot_3", out var leftPlayerPile) && leftPlayerPile.Count > 0)
         {
-            _localDiscardTile?.SetTileData(leftPlayerPile[^1]);
+            var topTile = leftPlayerPile[^1];
+            _localDiscardTile?.SetTileData(topTile);
             if (_localDiscardTile != null) _localDiscardTile.Visible = true;
+            if (_discardZone != null) 
+            {
+                _discardZone.HasTile = true;
+                _discardZone.CurrentTile = topTile;
+            }
             // Also update the Left Bot's avatar slot just in case
-            LeftOpponent?.SetDiscardTile(leftPlayerPile[^1]);
+            LeftOpponent?.SetDiscardTile(topTile);
         }
         else if (_localDiscardTile != null)
         {
             _localDiscardTile.Visible = false;
+            if (_discardZone != null) _discardZone.HasTile = false;
             LeftOpponent?.SetDiscardTile(null);
         }
         
@@ -223,10 +247,119 @@ public partial class MainEngine : Control
     // Called by UI events
     public void OnDrawFromDeckPressed()
     {
-        if (_matchManager.DrawFromDeck(_localPlayer.Id))
+        _activeAnimationsCount++;
+        int landedIndex = _matchManager.DrawFromDeck(_localPlayer.Id);
+        if (landedIndex != -1)
         {
-            // TODO: Animate from Deck down to Rack
+            AnimateDrawEffect(false, landedIndex, true);
+        }
+        else
+        {
+            _activeAnimationsCount--;
+            HandleGameStateChanged(true);
+        }
+    }
+
+    public void OnDrawFromDiscardPressed()
+    {
+        _activeAnimationsCount++;
+        int landedIndex = _matchManager.DrawFromDiscard(_localPlayer.Id);
+        if (landedIndex != -1)
+        {
+            AnimateDrawEffect(true, landedIndex, true);
+        }
+        else
+        {
+            _activeAnimationsCount--;
+            HandleGameStateChanged(true);
+        }
+    }
+
+    private void OnDrawToSlot(bool fromDiscard, int targetIndex)
+    {
+        // Internal helper: by default, if we come from a Slot drop, we don't re-animate
+        OnDrawToSlot(fromDiscard, targetIndex, false);
+    }
+
+    private void OnDrawToSlot(bool fromDiscard, int targetIndex, bool animate)
+    {
+        if (animate) _activeAnimationsCount++;
+
+        int landedIndex = -1;
+        if (fromDiscard)
+        {
+            landedIndex = _matchManager.DrawFromDiscard(_localPlayer.Id, targetIndex);
+        }
+        else
+        {
+            landedIndex = _matchManager.DrawFromDeck(_localPlayer.Id, targetIndex);
+        }
+
+        if (landedIndex != -1)
+        {
+            AnimateDrawEffect(fromDiscard, landedIndex, animate);
+        }
+        else if (animate)
+        {
+            _activeAnimationsCount--;
+            HandleGameStateChanged(true);
+        }
+    }
+
+    private int GetFirstAvailableSlotIndex()
+    {
+        for (int i = 0; i < _localPlayer.Rack.Length; i++)
+        {
+            if (_localPlayer.Rack[i] == null) return i;
+        }
+        return -1;
+    }
+
+    private void AnimateDrawEffect(bool fromDiscard, int targetIndex, bool animate)
+    {
+        if (!animate)
+        {
             HandleGameStateChanged();
+            return;
+        }
+
+        Control sourceNode = fromDiscard ? _discardZone : _boardCenter?.DeckCountBadge;
+        Control targetNode = LocalRackUI?.GetSlotNode(targetIndex);
+        TileUI targetTileUI = LocalRackUI?.GetTileUI(targetIndex);
+        Tile drawnTile = _localPlayer.Rack[targetIndex];
+
+        if (sourceNode != null && targetNode != null && drawnTile != null)
+        {
+             AnimateTileMove(sourceNode, targetNode, drawnTile, targetTileUI, null, () => {
+                _activeAnimationsCount--;
+                HandleGameStateChanged(true);
+            });
+        }
+        else
+        {
+            _activeAnimationsCount--;
+            HandleGameStateChanged(true);
+        }
+    }
+
+    public override bool _CanDropData(Vector2 atPosition, Variant data)
+    {
+        var dict = data.AsGodotDictionary();
+        if (dict != null && dict.ContainsKey("type") && dict["type"].AsString() == "drawing")
+        {
+            return true;
+        }
+        return false;
+    }
+
+    public override void _DropData(Vector2 atPosition, Variant data)
+    {
+        var dict = data.AsGodotDictionary();
+        if (dict != null && dict.ContainsKey("type") && dict["type"].AsString() == "drawing")
+        {
+            bool fromDiscard = dict["fromDiscard"].AsBool();
+            // User dropped on background, use first available slot but ANIMATE it
+            OnDrawToSlot(fromDiscard, -1, true);
         }
     }
 
@@ -246,10 +379,12 @@ public partial class MainEngine : Control
         if (playerId == _localPlayer.Id) return;
 
         Control sourceNode = null;
+        TileUI sourceTileUI = null;
         if (fromDiscard)
         {
             // Find who is to the left of this player
             sourceNode = GetDiscardSourceForPlayer(playerId);
+            sourceTileUI = GetDiscardTileUIAtNode(sourceNode);
         }
         else
         {
@@ -260,7 +395,11 @@ public partial class MainEngine : Control
 
         if (sourceNode != null && targetNode != null)
         {
-            AnimateTileMove(sourceNode, targetNode, tile, null);
+            _activeAnimationsCount++;
+            AnimateTileMove(sourceNode, targetNode, tile, null, sourceTileUI, () => {
+                _activeAnimationsCount--;
+                HandleGameStateChanged(true);
+            });
         }
     }
 
@@ -270,11 +409,25 @@ public partial class MainEngine : Control
 
         Control sourceNode = GetOpponentUIById(playerId);
         Control targetNode = GetDiscardTargetForPlayer(playerId);
+        TileUI targetTileUI = GetDiscardTileUIAtNode(targetNode);
 
         if (sourceNode != null && targetNode != null)
         {
-            AnimateTileMove(sourceNode, targetNode, tile, null);
+            _activeAnimationsCount++;
+            AnimateTileMove(sourceNode, targetNode, tile, targetTileUI, null, () => {
+                _activeAnimationsCount--;
+                HandleGameStateChanged(true);
+            });
         }
+    }
+
+    private TileUI GetDiscardTileUIAtNode(Control node)
+    {
+        if (node == _discardZone) return _localDiscardTile;
+        if (node is OpponentUI opp) return opp.GetDiscardTileUI();
+        // If it's a sub-node of OpponentUI (the drop slot)
+        if (node?.GetParent() is OpponentUI parentOpp) return parentOpp.GetDiscardTileUI();
+        return null;
     }
 
     private Control GetOpponentUIById(string id)
@@ -305,15 +458,6 @@ public partial class MainEngine : Control
         return null;
     }
 
-    public void OnDrawFromDiscardPressed()
-    {
-        if (_matchManager.DrawFromDiscard(_localPlayer.Id))
-        {
-            // TODO: Animate from Left Player's Discard down to Rack
-            HandleGameStateChanged();
-        }
-    }
-
     public void OnSortPressed()
     {
         _localPlayer.QuickSortRack();
@@ -323,11 +467,21 @@ public partial class MainEngine : Control
     // --- Global Animation Manager ---
     private void AnimateTileMove(Control sourceControl, Control targetControl, Tile tileData, Action onComplete)
     {
+        AnimateTileMove(sourceControl, targetControl, tileData, null, null, onComplete);
+    }
+
+    private void AnimateTileMove(Control sourceControl, Control targetControl, Tile tileData, TileUI suppressTarget, TileUI hideSource, Action onComplete)
+    {
         if (sourceControl == null || targetControl == null || tileData == null)
         {
             onComplete?.Invoke();
             return;
         }
+
+        // Suppress the target if requested
+        if (suppressTarget != null) suppressTarget.IsVisualSuppressed = true;
+        // Hide the source if requested (to make it look like it's truly moving)
+        if (hideSource != null) hideSource.IsVisualSuppressed = true;
 
         // 1. Create a dummy TileUI to act as the flying ghost
         var ghostTile = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn").Instantiate<TileUI>();
@@ -362,6 +516,8 @@ public partial class MainEngine : Control
         }
 
         tween.Finished += () => {
+            if (suppressTarget != null) suppressTarget.IsVisualSuppressed = false;
+            if (hideSource != null) hideSource.IsVisualSuppressed = false;
             ghostTile.QueueFree();
             onComplete?.Invoke();
         };

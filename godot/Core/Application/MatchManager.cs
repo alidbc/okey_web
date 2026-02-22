@@ -84,43 +84,71 @@ public class MatchManager
         // This is simplified; normally evaluate upon drawing/viewing
     }
 
-    public bool DrawFromDeck(string playerId)
+    public Tile PeekDeck() => GameDeck?.Peek();
+
+    public int DrawFromDeck(string playerId, int targetIndex = -1)
     {
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Draw || Players[CurrentPlayerIndex].Id != playerId)
-            return false;
+            return -1;
 
         Tile drawn = GameDeck.Draw();
-        if (drawn == null) return false;
+        if (drawn == null) return -1;
 
-        Players[CurrentPlayerIndex].AddTileToFirstEmptySlot(drawn);
+        Player p = Players[CurrentPlayerIndex];
+        int finalIndex = -1;
+        if (targetIndex != -1)
+        {
+            finalIndex = p.AddTileToSlot(drawn, targetIndex);
+        }
+        
+        if (finalIndex == -1)
+        {
+            finalIndex = p.AddTileToFirstEmptySlot(drawn);
+        }
+
+        if (finalIndex == -1) return -1; // Should not happen in normal Okey
+
         CurrentPhase = TurnPhase.Discard;
         
         OnTileDrawn?.Invoke(playerId, drawn, false);
         OnGameStateChanged?.Invoke();
-        return true;
+        return finalIndex;
     }
 
-    public bool DrawFromDiscard(string playerId)
+    public int DrawFromDiscard(string playerId, int targetIndex = -1)
     {
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Draw || Players[CurrentPlayerIndex].Id != playerId)
-            return false;
+            return -1;
             
         // In Okey, you draw from the player to your left (the previous player in turn order)
         int leftPlayerIndex = (CurrentPlayerIndex - 1 + Players.Count) % Players.Count;
         string leftPlayerId = Players[leftPlayerIndex].Id;
         
         var leftPile = PlayerDiscardPiles[leftPlayerId];
-        if (leftPile.Count == 0) return false;
+        if (leftPile.Count == 0) return -1;
 
         Tile drawn = leftPile[^1];
         leftPile.RemoveAt(leftPile.Count - 1);
         
-        Players[CurrentPlayerIndex].AddTileToFirstEmptySlot(drawn);
+        Player p = Players[CurrentPlayerIndex];
+        int finalIndex = -1;
+        if (targetIndex != -1)
+        {
+            finalIndex = p.AddTileToSlot(drawn, targetIndex);
+        }
+        
+        if (finalIndex == -1)
+        {
+            finalIndex = p.AddTileToFirstEmptySlot(drawn);
+        }
+
+        if (finalIndex == -1) return -1;
+
         CurrentPhase = TurnPhase.Discard;
         
         OnTileDrawn?.Invoke(playerId, drawn, true);
         OnGameStateChanged?.Invoke();
-        return true;
+        return finalIndex;
     }
 
     public bool DiscardTile(string playerId, int tileIndex)

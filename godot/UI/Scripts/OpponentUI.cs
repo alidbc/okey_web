@@ -10,6 +10,7 @@ public partial class OpponentUI : HBoxContainer
     private PanelContainer _nameplate;
     private ColorRect _dropSlot;
     private TileUI _discardTileUI;
+    public bool IsValidDiscardTarget { get; set; } = false;
 
     // Standard Styles
     private StyleBoxFlat _activeStyle;
@@ -66,6 +67,8 @@ public partial class OpponentUI : HBoxContainer
         return (Control)this;
     }
 
+    public TileUI GetDiscardTileUI() => _discardTileUI;
+
     public void SetActive(bool isActive)
     {
         if (_nameplate != null && _activeStyle != null && _inactiveStyle != null)
@@ -94,6 +97,8 @@ public partial class OpponentUI : HBoxContainer
 
     public override bool _CanDropData(Vector2 atPosition, Variant data)
     {
+        if (!IsValidDiscardTarget) return false;
+        
         var draggedTile = data.AsGodotObject() as TileUI;
         if (draggedTile != null)
         {

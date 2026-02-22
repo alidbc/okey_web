@@ -128,11 +128,10 @@ layout_mode = 2
 theme_override_constants/separation = 40
 alignment = 1
 
-[node name="DiscardPileTarget" type="ColorRect" parent="CenterLayout/PlayerElementsRow"]
+[node name="DiscardPileTarget" type="PanelContainer" parent="CenterLayout/PlayerElementsRow"]
 custom_minimum_size = Vector2(65, 90)
 layout_mode = 2
-color = Color(0, 0, 0, 0.2)
-mouse_filter = 1
+mouse_filter = 0
 script = ExtResource("5_discard")
 
 [node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/PlayerElementsRow/DiscardPileTarget"]

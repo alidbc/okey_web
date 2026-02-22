@@ -58,5 +58,11 @@ public class Deck
     
     public Tile DrawIndicator() => Draw(); // Draws a random tile to be the indicator
 
+    public Tile Peek()
+    {
+        if (_tiles.Count == 0) return null;
+        return _tiles[_tiles.Count - 1];
+    }
+
     public int RemainingCount => _tiles.Count;
 }

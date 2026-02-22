@@ -22,6 +22,7 @@ public partial class BoardCenterUI : HBoxContainer
             {
                 _indicatorTile.BaseModulate = new Color(0.75f, 0.75f, 0.75f, 0.9f); // brightness-75 opacity-90
                 _indicatorTile.Modulate = _indicatorTile.BaseModulate; // Apply immediately
+                _indicatorTile.MouseFilter = MouseFilterEnum.Ignore;
             }
         }
     }

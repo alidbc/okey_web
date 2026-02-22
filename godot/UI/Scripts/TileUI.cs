@@ -8,6 +8,17 @@ public partial class TileUI : TextureRect
 {
     public Tile TileData { get; private set; }
     
+    private bool _isVisualSuppressed = false;
+    public bool IsVisualSuppressed 
+    { 
+        get => _isVisualSuppressed; 
+        set 
+        {
+            _isVisualSuppressed = value;
+            UpdateVisuals();
+        }
+    }
+    
     // Allows parent containers to tint the tile (like the indicator tile)
     public Color BaseModulate = new Color(1, 1, 1, 1);
     
@@ -55,7 +66,7 @@ public partial class TileUI : TextureRect
 
     private void UpdateVisuals()
     {
-        if (TileData == null)
+        if (TileData == null || IsVisualSuppressed)
         {
             Modulate = new Color(BaseModulate.R, BaseModulate.G, BaseModulate.B, 0); // Hide completely
             return;

@@ -10,6 +10,13 @@ public partial class RackSlotUI : PanelContainer
     // Accept drops if the dragged data is a TileUI AND the tile actually possesses data
     public override bool _CanDropData(Vector2 atPosition, Variant data)
     {
+        var dict = data.AsGodotDictionary();
+        if (dict != null && dict.ContainsKey("type") && dict["type"].AsString() == "drawing")
+        {
+            GD.Print($"RackSlotUI[{SlotIndex}]: _CanDropData - detected DRAWING");
+            return true;
+        }
+
         var draggedTile = data.AsGodotObject() as TileUI;
         if (draggedTile != null)
         {
@@ -20,6 +27,15 @@ public partial class RackSlotUI : PanelContainer
 
     public override void _DropData(Vector2 atPosition, Variant data)
     {
+        var dict = data.AsGodotDictionary();
+        if (dict != null && dict.ContainsKey("type") && dict["type"].AsString() == "drawing")
+        {
+            bool fromDiscard = dict["fromDiscard"].AsBool();
+            GD.Print($"RackSlotUI[{SlotIndex}]: _DropData - DRAWING fromDiscard:{fromDiscard}");
+            EmitSignal(nameof(DrawToSlot), fromDiscard, SlotIndex);
+            return;
+        }
+
         var draggedTileUI = data.AsGodotObject() as TileUI;
         if (draggedTileUI != null)
         {
@@ -35,4 +51,7 @@ public partial class RackSlotUI : PanelContainer
 
     [Signal]
     public delegate void TileMovedEventHandler(int fromIndex, int toIndex);
+
+    [Signal]
+    public delegate void DrawToSlotEventHandler(bool fromDiscard, int toIndex);
 }

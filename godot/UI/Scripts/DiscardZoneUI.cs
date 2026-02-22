@@ -1,13 +1,20 @@
 using Godot;
+using OkieRummyGodot.Core.Domain;
 
 namespace OkieRummyGodot.UI.Scripts;
 
 // Script attached to the Discard Pile UI to accept drops from the Player's Rack
-public partial class DiscardZoneUI : ColorRect
+public partial class DiscardZoneUI : PanelContainer
 {
+    public bool HasTile { get; set; } = false;
+    public Tile CurrentTile { get; set; }
+    public bool IsValidDiscardTarget { get; set; } = false;
+
     // Accept drops if it's a tile coming from the rack
     public override bool _CanDropData(Vector2 atPosition, Variant data)
     {
+        if (!IsValidDiscardTarget) return false;
+
         var draggedTile = data.AsGodotObject() as TileUI;
         if (draggedTile != null)
         {
@@ -36,10 +43,37 @@ public partial class DiscardZoneUI : ColorRect
 
     public override void _GuiInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
+        if (@event is InputEventMouseButton mouseEvent && !mouseEvent.Pressed && mouseEvent.ButtonIndex == MouseButton.Left)
         {
             EmitSignal(nameof(DiscardPileClicked));
         }
+    }
+
+    public override Variant _GetDragData(Vector2 atPosition)
+    {
+        if (!HasTile) return default;
+
+        GD.Print("DiscardZoneUI: _GetDragData called");
+
+        var data = new Godot.Collections.Dictionary();
+        data["type"] = "drawing";
+        data["fromDiscard"] = true;
+
+        // Visual preview - Use actual TileUI for Discard Pile
+        var preview = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn").Instantiate<TileUI>();
+        preview.SetTileData(CurrentTile);
+        preview.Modulate = new Color(1, 1, 1, 0.8f);
+        preview.CustomMinimumSize = new Vector2(65, 90);
+        preview.SetRotation(Mathf.DegToRad(-5));
+        
+        // Wrap it in a Control to allow offsetting
+        Control wrapper = new Control();
+        wrapper.AddChild(preview);
+        preview.Position = -preview.CustomMinimumSize / 2;
+
+        SetDragPreview(wrapper);
+
+        return data;
     }
 
     [Signal]

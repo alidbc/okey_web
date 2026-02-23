@@ -11,9 +11,14 @@ config_version=5
 [application]
 
 config/name="OkieRummyGodot"
-run/main_scene="res://UI/Scenes/Main.tscn"
+run/main_scene="res://UI/Scenes/Lobby.tscn"
 config/features=PackedStringArray("4.5", "C#", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+NetworkManager="*res://UI/Scenes/NetworkManager.tscn"
+ServerManager="*res://Server/ServerManager.tscn"
 
 [display]
 
@@ -24,3 +29,7 @@ window/stretch/mode="canvas_items"
 [dotnet]
 
 project/assembly_name="OkieRummyGodot"
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true

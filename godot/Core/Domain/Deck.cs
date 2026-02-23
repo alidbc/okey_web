@@ -64,5 +64,27 @@ public class Deck
         return _tiles[_tiles.Count - 1];
     }
 
-    public int RemainingCount => _tiles.Count;
+    public void ApplyOkeyRules(int okeyValue, TileColor color)
+    {
+        foreach (var tile in _tiles)
+        {
+            if (tile.IsFakeOkey)
+            {
+                tile.Value = okeyValue;
+                tile.Color = color;
+                tile.IsWildcard = false;
+            }
+            else if (tile.Value == okeyValue && tile.Color == color)
+            {
+                tile.IsWildcard = true;
+            }
+        }
+    }
+
+    private int? _countOverride;
+    public int RemainingCount 
+    { 
+        get => _countOverride ?? _tiles.Count; 
+        set => _countOverride = value; 
+    }
 }

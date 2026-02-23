@@ -17,16 +17,16 @@ shadow_color = Color(0, 0, 0, 0.4)
 shadow_size = 5
 
 [node name="DeckUI" type="PanelContainer"]
-custom_minimum_size = Vector2(65, 90)
+custom_minimum_size = Vector2(75, 104)
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -32.5
-offset_top = -45.0
-offset_right = 32.5
-offset_bottom = 45.0
+offset_left = -37.5
+offset_top = -52.0
+offset_right = 37.5
+offset_bottom = 52.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0

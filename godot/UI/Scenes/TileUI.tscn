@@ -3,10 +3,14 @@
 [ext_resource type="Script" path="res://UI/Scripts/TileUI.cs" id="1_tile_script"]
 [ext_resource type="Texture2D" uid="uid://dfyq7k7m3e" path="res://Assets/heart_indicator.svg" id="2_heart"]
 [ext_resource type="Texture2D" uid="uid://bvyg7k4g1v" path="res://Assets/fake_okey.svg" id="3_fake_okey"]
-[ext_resource type="Texture2D" uid="uid://cfvq7k8m5w" path="res://Assets/Tile.png" id="4_bg"]
+[ext_resource type="Texture2D" path="res://Assets/Tile_v2.png" id="4_bg"]
+
+[sub_resource type="SystemFont" id="SystemFont_bold"]
+font_weight = 700
+subpixel_positioning = 0
 
 [node name="TileUI" type="TextureRect"]
-custom_minimum_size = Vector2(65, 90)
+custom_minimum_size = Vector2(75, 104)
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -54,14 +58,15 @@ theme_override_colors/font_outline_color = Color(1, 1, 1, 0.6)
 theme_override_constants/shadow_offset_y = 1
 theme_override_constants/shadow_offset_x = 0
 theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 34
+theme_override_fonts/font = SubResource("SystemFont_bold")
+theme_override_font_sizes/font_size = 39
 text = "13"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="HeartIcon" type="TextureRect" parent="ShadowRoot/ContentContainer"]
 mouse_filter = 2
-custom_minimum_size = Vector2(20, 20)
+custom_minimum_size = Vector2(22, 22)
 layout_mode = 2
 size_flags_horizontal = 4
 texture = ExtResource("2_heart")

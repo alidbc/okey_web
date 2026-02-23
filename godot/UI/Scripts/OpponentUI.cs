@@ -27,12 +27,13 @@ public partial class OpponentUI : HBoxContainer
         {
             _activeStyle.BorderColor = new Color(0.98f, 0.80f, 0.08f, 1f); // yellow-400
             _activeStyle.ShadowColor = new Color(0.98f, 0.80f, 0.08f, 0.8f);
-            _activeStyle.ShadowSize = 25;
+            _activeStyle.ShadowSize = 15;
         }
     }
 
     public void Initialize(Player playerData, bool isRightOpponent = false)
     {
+        if (playerData == null) return;
         if (_nameLabel != null) _nameLabel.Text = playerData.Name;
         // Mocking level parsing, actual app had it typed
         if (_levelLabel != null) _levelLabel.Text = "Level 42"; 

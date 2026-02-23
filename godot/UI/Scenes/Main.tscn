@@ -1,17 +1,20 @@
 [gd_scene load_steps=11 format=3 uid="uid://uk5d2h2gqpaq"]
 
-[ext_resource type="Script" uid="uid://c13ae7dnr76m3" path="res://UI/Scripts/MainEngine.cs" id="1_main_script"]
-[ext_resource type="PackedScene" path="res://UI/Scenes/RackUI.tscn" id="2_rack_scene"]
+[ext_resource type="Script" path="res://UI/Scripts/MainEngine.cs" id="1_engine"]
+[ext_resource type="Script" path="res://Core/Networking/NetworkManager.cs" id="2_network"]
+[ext_resource type="PackedScene" uid="uid://b0rack1234" path="res://UI/Scenes/RackUI.tscn" id="2_rack_scene"]
 [ext_resource type="PackedScene" path="res://UI/Scenes/BoardCenterUI.tscn" id="3_board_center"]
 [ext_resource type="Texture2D" uid="uid://d8nqddynsr2o" path="res://Assets/avatar.png" id="4_avatar"]
 [ext_resource type="Script" uid="uid://cgnubvet1lqjv" path="res://UI/Scripts/DiscardZoneUI.cs" id="5_discard"]
 [ext_resource type="PackedScene" path="res://UI/Scenes/OpponentUI.tscn" id="6_opponent"]
+[ext_resource type="PackedScene" path="res://UI/Scenes/GameEndUI.tscn" id="7_game_end"]
+[ext_resource type="Script" path="res://UI/Scripts/NameplateUI.cs" id="8_nameplate"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nameplate"]
-content_margin_left = 16.0
-content_margin_top = 8.0
-content_margin_right = 16.0
-content_margin_bottom = 8.0
+content_margin_left = 21.0
+content_margin_top = 11.0
+content_margin_right = 21.0
+content_margin_bottom = 11.0
 bg_color = Color(0.360784, 0.227451, 0.129412, 1)
 border_width_left = 2
 border_width_top = 2
@@ -27,10 +30,10 @@ shadow_size = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_bg"]
 bg_color = Color(0.2, 0.2, 0.2, 1)
-corner_radius_top_left = 27
-corner_radius_top_right = 27
-corner_radius_bottom_right = 27
-corner_radius_bottom_left = 27
+corner_radius_top_left = 35
+corner_radius_top_right = 35
+corner_radius_bottom_right = 35
+corner_radius_bottom_left = 35
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_border"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -39,10 +42,10 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.721569, 0.52549, 0.0431373, 1)
-corner_radius_top_left = 27
-corner_radius_top_right = 27
-corner_radius_bottom_right = 27
-corner_radius_bottom_left = 27
+corner_radius_top_left = 35
+corner_radius_top_right = 35
+corner_radius_bottom_right = 35
+corner_radius_bottom_left = 35
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_online"]
 bg_color = Color(0.133, 0.773, 0.369, 1)
@@ -56,14 +59,14 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
-[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4")]
+[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4", "StartGameButton")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_main_script")
+script = ExtResource("1_engine")
 LocalRackUI = NodePath("BottomArea/RackUI")
 StatusLabel = NodePath("CenterLayout/InstructionBox/InstructionLabel")
 TopOpponent = NodePath("CenterLayout/TopRow/TopOpponent")
@@ -73,6 +76,8 @@ DZ1 = NodePath("CenterLayout/BottomRow/DZ1")
 DZ2 = NodePath("CenterLayout/TopRow/DZ2")
 DZ3 = NodePath("CenterLayout/TopRow/DZ3")
 DZ4 = NodePath("CenterLayout/BottomRow/DZ4")
+StartGameButton = NodePath("BottomArea/ActionButtons/StartButton")
+GameEndUIScreen = ExtResource("7_game_end")
 
 [node name="Background_Felt" type="ColorRect" parent="."]
 layout_mode = 1
@@ -105,7 +110,7 @@ theme_override_constants/separation = 40
 alignment = 1
 
 [node name="DZ3" type="PanelContainer" parent="CenterLayout/TopRow"]
-custom_minimum_size = Vector2(65, 90)
+custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
 script = ExtResource("5_discard")
 
@@ -124,7 +129,7 @@ editor_only = false
 layout_mode = 2
 
 [node name="DZ2" type="PanelContainer" parent="CenterLayout/TopRow"]
-custom_minimum_size = Vector2(65, 90)
+custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
 script = ExtResource("5_discard")
 
@@ -159,7 +164,7 @@ theme_override_constants/separation = 40
 alignment = 1
 
 [node name="DZ4" type="PanelContainer" parent="CenterLayout/BottomRow"]
-custom_minimum_size = Vector2(65, 90)
+custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
 script = ExtResource("5_discard")
 
@@ -175,17 +180,18 @@ border_color = Color(1, 1, 1, 0.1)
 editor_only = false
 
 [node name="Nameplate" type="PanelContainer" parent="CenterLayout/BottomRow"]
-custom_minimum_size = Vector2(187, 66)
+custom_minimum_size = Vector2(243, 86)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_styles/panel = SubResource("StyleBoxFlat_nameplate")
+script = ExtResource("8_nameplate")
 
 [node name="HBoxContainer" type="HBoxContainer" parent="CenterLayout/BottomRow/Nameplate"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 
 [node name="AvatarContainer" type="Control" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer"]
-custom_minimum_size = Vector2(53, 53)
+custom_minimum_size = Vector2(69, 69)
 layout_mode = 2
 size_flags_vertical = 4
 
@@ -220,7 +226,7 @@ grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_border")
 
 [node name="OnlineIndicator" type="Panel" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
-custom_minimum_size = Vector2(12, 12)
+custom_minimum_size = Vector2(16, 16)
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
@@ -240,17 +246,17 @@ alignment = 1
 [node name="Name" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.992157, 0.964706, 0.823529, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 21
 text = "OkeyPro_99"
 
 [node name="Level" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.5)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 16
 text = "LEVEL 42"
 
 [node name="DZ1" type="PanelContainer" parent="CenterLayout/BottomRow"]
-custom_minimum_size = Vector2(65, 90)
+custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
 script = ExtResource("5_discard")
 
@@ -279,13 +285,13 @@ text = "Opponents are playing..."
 horizontal_alignment = 1
 
 [node name="BottomArea" type="Control" parent="."]
-custom_minimum_size = Vector2(0, 150)
+custom_minimum_size = Vector2(0, 350)
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -150.0
+offset_top = -350.0
 grow_horizontal = 2
 grow_vertical = 0
 
@@ -302,11 +308,17 @@ anchor_bottom = 1.0
 offset_left = -150.0
 offset_top = -160.0
 offset_right = 150.0
-offset_bottom = -120.0
+offset_bottom = -110.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_constants/separation = 8
+theme_override_constants/separation = 20
 alignment = 1
+
+[node name="StartButton" type="Button" parent="BottomArea/ActionButtons"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "START GAME (WITH BOTS)"
 
 [node name="SortButton" type="Button" parent="BottomArea"]
 layout_mode = 1
@@ -323,3 +335,5 @@ grow_horizontal = 0
 grow_vertical = 0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 text = "S"
+
+

@@ -1,26 +1,35 @@
 using System;
 using System.Collections.Generic;
+using Godot;
 using OkieRummyGodot.Core.Domain;
 
 namespace OkieRummyGodot.Core.Application;
 
 public class MatchManager
 {
-    public GameStatus Status { get; private set; }
-    public TurnPhase CurrentPhase { get; private set; }
+    public GameStatus Status { get; set; }
+    public TurnPhase CurrentPhase { get; set; }
     
-    public Deck GameDeck { get; private set; }
-    public Tile IndicatorTile { get; private set; }
-    public Tile OkeyTile { get; private set; }
+    public Deck GameDeck { get; set; }
+    public Tile IndicatorTile { get; set; }
+    public Tile OkeyTile { get; set; }
     
-    public List<Player> Players { get; private set; }
-    public int CurrentPlayerIndex { get; private set; }
+    public List<Player> Players { get; set; }
+    public int CurrentPlayerIndex { get; set; }
     
-    public List<Tile> DiscardPile { get; private set; } // Center discard pile
+    public long TurnID { get; set; }
+    public long TurnStartTimestamp { get; set; }
+    public int TurnDuration { get; set; } = 30; // Default 30 seconds
+    public GamePhase Phase { get; set; }
     
+    public List<Tile> DiscardPile { get; set; } // Center discard pile
+    
+    public string WinnerId { get; set; }
+    public List<Tile> WinnerTiles { get; set; }
+
     // In a real Okey game, each player drops to the player on their right.
     // For simplicity mirroring the React version, we just store what they discarded
-    public Dictionary<string, List<Tile>> PlayerDiscardPiles { get; private set; }
+    public Dictionary<string, List<Tile>> PlayerDiscardPiles { get; set; }
 
     public event Action OnGameStateChanged;
     public event Action<string, Tile, bool> OnTileDrawn;
@@ -42,7 +51,7 @@ public class MatchManager
 
     public void StartGame()
     {
-        if (Players.Count != 4) throw new InvalidOperationException("Need exactly 4 players.");
+        if (Players.Count < 2 || Players.Count > 4) throw new InvalidOperationException("Need between 2 and 4 players.");
         
         GameDeck = new Deck();
         GameDeck.Shuffle();
@@ -53,14 +62,14 @@ public class MatchManager
         DiscardPile.Clear();
         foreach (var p in Players)
         {
-            PlayerDiscardPiles[p.Id].Clear();
+            PlayerDiscardPiles[p.Id] = new List<Tile>();
             // Clear rack
             for(int i=0; i < 26; i++) p.Rack[i] = null;
         }
 
         // Deal tiles (15 to first player, 14 to others)
         for (int i = 0; i < 15; i++) Players[0].AddTileToFirstEmptySlot(GameDeck.Draw());
-        for (int pIdx = 1; pIdx < 4; pIdx++)
+        for (int pIdx = 1; pIdx < Players.Count; pIdx++)
         {
             for (int i = 0; i < 14; i++) Players[pIdx].AddTileToFirstEmptySlot(GameDeck.Draw());
         }
@@ -68,9 +77,12 @@ public class MatchManager
         CurrentPlayerIndex = 0;
         Players[0].IsActive = true;
         
-        // First player starts with 15 tiles, so they skip draw phase and go straight to discard
         CurrentPhase = TurnPhase.Discard;
         Status = GameStatus.Playing;
+        Phase = GamePhase.Playing;
+        
+        TurnID = 1;
+        TurnStartTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         
         OnGameStateChanged?.Invoke();
     }
@@ -80,8 +92,8 @@ public class MatchManager
         int okeyValue = IndicatorTile.Value == 13 ? 1 : IndicatorTile.Value + 1;
         OkeyTile = new Tile("okey_ref", okeyValue, IndicatorTile.Color);
         
-        // Apply wildcard status to all matching tiles in deck before drawing
-        // This is simplified; normally evaluate upon drawing/viewing
+        // Apply wildcard status and fix Fake Okeys in the deck
+        GameDeck.ApplyOkeyRules(okeyValue, IndicatorTile.Color);
     }
 
     public Tile PeekDeck() => GameDeck?.Peek();
@@ -112,6 +124,7 @@ public class MatchManager
         
         OnTileDrawn?.Invoke(playerId, drawn, false);
         OnGameStateChanged?.Invoke();
+        PersistenceManager.SaveMatch(playerId, this); // Simple ID for now
         return finalIndex;
     }
 
@@ -148,6 +161,7 @@ public class MatchManager
         
         OnTileDrawn?.Invoke(playerId, drawn, true);
         OnGameStateChanged?.Invoke();
+        PersistenceManager.SaveMatch(playerId, this);
         return finalIndex;
     }
 
@@ -164,22 +178,43 @@ public class MatchManager
         PlayerDiscardPiles[playerId].Add(tileToDiscard);
         
         OnTileDiscarded?.Invoke(playerId, tileToDiscard);
+        PersistenceManager.SaveMatch(playerId, this);
         NextTurn();
         return true;
     }
 
-    public (bool success, string message) FinishGame(string playerId)
+    public (bool success, string message) FinishGame(string playerId, int finishTileIndex)
     {
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Discard || Players[CurrentPlayerIndex].Id != playerId)
             return (false, "Not your turn to finish.");
 
         var player = Players[CurrentPlayerIndex];
-        var validTiles = player.GetValidTiles(); // Should be 14 at this point (15 minus the 1 they want to discard)
         
-        var (isValid, reason) = RuleEngine.ValidateHandGroups(validTiles);
+        // Handle finish by preserving gaps so ValidateHandGroups can identify clusters
+        var validationList = new List<Tile>();
+        for (int i = 0; i < player.Rack.Length; i++)
+        {
+            // Treat the finishing tile as a gap (null) for validation
+            if (i == finishTileIndex)
+                validationList.Add(null);
+            else
+                validationList.Add(player.Rack[i]);
+        }
+        
+        var (isValid, reason) = RuleEngine.ValidateHandGroups(validationList);
         if (isValid)
         {
             Status = GameStatus.Victory;
+            WinnerId = playerId;
+            
+            // Store the entire rack to preserve organization/gaps
+            WinnerTiles = new List<Tile>(player.Rack);
+            // Specifically null out the finishing tile if it's still there
+            if (finishTileIndex >= 0 && finishTileIndex < WinnerTiles.Count)
+            {
+                WinnerTiles[finishTileIndex] = null;
+            }
+
             OnGameStateChanged?.Invoke();
             return (true, "Victory!");
         }
@@ -187,13 +222,98 @@ public class MatchManager
         return (false, reason);
     }
 
+    public List<PlayerScore> GetPlayerScores()
+    {
+        var scores = new List<PlayerScore>();
+        foreach (var p in Players)
+        {
+            scores.Add(new PlayerScore
+            {
+                PlayerId = p.Id,
+                PlayerName = p.Name,
+                AvatarUrl = p.AvatarUrl,
+                IsWinner = Status == GameStatus.Victory && p.IsActive, // The player who just finished
+                Score = (Status == GameStatus.Victory && p.IsActive) ? 100 : 0
+            });
+        }
+        return scores;
+    }
+
     private void NextTurn()
     {
+        if (GameDeck.RemainingCount == 0)
+        {
+            Status = GameStatus.GameOver;
+            OnGameStateChanged?.Invoke();
+            return;
+        }
+
         Players[CurrentPlayerIndex].IsActive = false;
         CurrentPlayerIndex = (CurrentPlayerIndex + 1) % Players.Count;
         Players[CurrentPlayerIndex].IsActive = true;
         
         CurrentPhase = TurnPhase.Draw;
+        TurnID++;
+        TurnStartTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        
+        // Bot replacement trigger
+        CheckBotReplacement();
+        
         OnGameStateChanged?.Invoke();
     }
+
+    private void CheckBotReplacement()
+    {
+        var player = Players[CurrentPlayerIndex];
+        if (!player.IsBot && player.ConsecutiveMissedTurns >= 3)
+        {
+            GD.Print($"MatchManager: Player {player.Id} missed {player.ConsecutiveMissedTurns} turns. Replacing with bot.");
+            player.IsBot = true;
+            player.ConnectionState = PlayerConnectionState.REPLACED_BY_BOT;
+        }
+    }
+
+    public void CheckTimeouts()
+    {
+        if (Status != GameStatus.Playing) return;
+
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (now - TurnStartTimestamp > TurnDuration)
+        {
+            ExecuteAutoMove();
+        }
+    }
+
+    public void ExecuteAutoMove()
+    {
+        Player p = Players[CurrentPlayerIndex];
+        
+        if (CurrentPhase == TurnPhase.Draw)
+        {
+            // Auto draw from deck
+            DrawFromDeck(p.Id);
+        }
+        else if (CurrentPhase == TurnPhase.Discard)
+        {
+            // Auto discard: random tile or last drawn
+            // Simple strategy: discard last occupied slot or first available tile
+            int lastIndex = -1;
+            for (int i = RackSize - 1; i >= 0; i--)
+            {
+                if (p.Rack[i] != null)
+                {
+                    lastIndex = i;
+                    break;
+                }
+            }
+            
+            if (lastIndex != -1)
+            {
+                DiscardTile(p.Id, lastIndex);
+                p.ConsecutiveMissedTurns++;
+            }
+        }
+    }
+
+    private const int RackSize = 26;
 }

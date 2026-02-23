@@ -26,9 +26,12 @@ public class BotPlayer : Player
         
         await Task.Delay(800); // Simulate thinking before drawing
 
-        // Example logic from original simulateBotTurns
-        // 30% chance to draw from discard pile if it has tiles
-        bool hasDiscard = _matchManager.DiscardPile.Count > 0;
+        // In Okey, draw from the player to your left
+        int leftIdx = (_matchManager.Players.FindIndex(p => p.Id == Id) - 1 + _matchManager.Players.Count) % _matchManager.Players.Count;
+        string leftId = _matchManager.Players[leftIdx].Id;
+        var leftPile = _matchManager.PlayerDiscardPiles[leftId];
+        
+        bool hasDiscard = leftPile.Count > 0;
         bool drawFromDiscard = hasDiscard && Rng.NextDouble() < 0.3;
 
         if (drawFromDiscard)

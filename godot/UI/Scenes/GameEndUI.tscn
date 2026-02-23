@@ -1,0 +1,120 @@
+[gd_scene load_steps=3 format=3 uid="uid://game_end_scene"]
+
+[ext_resource type="Script" path="res://UI/Scripts/GameEndUI.cs" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://score_row_scene" path="res://UI/Scenes/ScoreRowUI.tscn" id="2_row"]
+
+[node name="GameEndUI" type="Control" node_paths=PackedStringArray("TitleLabel", "SubtitleLabel", "TileContainer", "LeaderboardContainer")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1_script")
+TitleLabel = NodePath("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Title")
+SubtitleLabel = NodePath("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Subtitle")
+TileContainer = NodePath("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/WinnerHandBox/TileContainer")
+LeaderboardContainer = NodePath("CenterContainer/PanelContainer/MarginContainer/VBoxContainer/LeaderboardContainer")
+ScoreRowScene = ExtResource("2_row")
+
+[node name="Overlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0, 0, 0, 0.8)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+mouse_filter = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer"]
+layout_mode = 2
+mouse_filter = 1
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 24
+mouse_filter = 1
+
+[node name="Title" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.843137, 0, 1)
+theme_override_font_sizes/font_size = 48
+text = "VICTORY"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.619608, 0.619608, 0.619608, 1)
+theme_override_font_sizes/font_size = 14
+text = "Deck is Empty"
+horizontal_alignment = 1
+uppercase = true
+
+[node name="WinnerHandBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+mouse_filter = 1
+
+[node name="Label" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/WinnerHandBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.6)
+theme_override_font_sizes/font_size = 16
+text = "WINNER'S HAND"
+horizontal_alignment = 1
+
+[node name="TileContainer" type="HFlowContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/WinnerHandBox"]
+custom_minimum_size = Vector2(400, 160)
+layout_mode = 2
+mouse_filter = 1
+alignment = 1
+
+[node name="FinalScoresHeader" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Final Scores"
+horizontal_alignment = 1
+
+[node name="LeaderboardContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+mouse_filter = 1
+
+[node name="Buttons" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 16
+mouse_filter = 1
+
+[node name="PlayAgain" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Play Again"
+
+[node name="MainMenu" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Main Menu"
+
+[connection signal="pressed" from="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Buttons/PlayAgain" to="." method="OnPlayAgainPressed"]
+[connection signal="pressed" from="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/Buttons/MainMenu" to="." method="OnMainMenuPressed"]

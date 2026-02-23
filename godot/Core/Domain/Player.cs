@@ -4,15 +4,21 @@ namespace OkieRummyGodot.Core.Domain;
 
 public class Player
 {
-    public string Id { get; }
-    public string Name { get; }
-    public string AvatarUrl { get; }
+    public string Id { get; set; }
+    public string Name { get; set; }
+    public string AvatarUrl { get; set; }
     public bool IsActive { get; set; }
-    public bool IsBot { get; }
+    public bool IsBot { get; set; }
+    public PlayerConnectionState ConnectionState { get; set; } = PlayerConnectionState.CONNECTED;
+    public string ReconnectToken { get; set; }
+    public int SeatIndex { get; set; }
+    public int ConsecutiveMissedTurns { get; set; }
     
     // The player's tile rack (fixed size of 26 in Okey)
-    public Tile[] Rack { get; }
+    public Tile[] Rack { get; set; }
     
+    public Player() { Rack = new Tile[26]; } // Required for serialization
+
     public Player(string id, string name, string avatarUrl, bool isBot = false)
     {
         Id = id;

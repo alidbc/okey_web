@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Godot
+godot/.godot/
+godot/exports/
+godot/*.csproj
+godot/*.sln
+godot/android/build/

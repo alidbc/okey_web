@@ -17,8 +17,8 @@ public partial class RackUI : Control
 	private HBoxContainer _bottomRow;
 	private TextureRect _rackBackgroundImage;
 
-	[Export] public float TopRowShift = 30.0f; 
-	[Export] public float BottomRowShift = 33.0f;
+	[Export] public float TopRowShift = 17.0f; 
+	[Export] public float BottomRowShift = 6.0f;
 
 	public override void _Ready()
 	{
@@ -109,6 +109,7 @@ public partial class RackUI : Control
 		{
 			_playerData.MoveTile(fromIndex, toIndex);
 			RefreshVisuals();
+			EmitSignal(nameof(TileMoved), fromIndex, toIndex);
 		}
 	}
 
@@ -134,6 +135,9 @@ public partial class RackUI : Control
 		}
 		return null;
 	}
+
+	[Signal]
+	public delegate void TileMovedEventHandler(int fromIndex, int toIndex);
 
 	[Signal]
 	public delegate void DrawToSlotEventHandler(bool fromDiscard, int toIndex);

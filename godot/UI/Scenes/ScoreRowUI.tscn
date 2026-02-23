@@ -1,0 +1,53 @@
+[gd_scene load_steps=2 format=3 uid="uid://score_row_scene"]
+
+[ext_resource type="Script" path="res://UI/Scripts/ScoreRowUI.cs" id="1_script"]
+
+[node name="ScoreRow" type="HBoxContainer"]
+custom_minimum_size = Vector2(0, 48)
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 48.0
+grow_horizontal = 2
+theme_override_constants/separation = 0
+script = ExtResource("1_script")
+
+[node name="Background" type="PanelContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer" type="MarginContainer" parent="Background"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_right = 12
+
+[node name="Content" type="HBoxContainer" parent="Background/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Rank" type="Label" parent="Background/MarginContainer/Content"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.619608, 0.619608, 0.619608, 1)
+theme_override_font_sizes/font_size = 18
+text = "1"
+vertical_alignment = 1
+
+[node name="Crown" type="Label" parent="Background/MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "👑"
+vertical_alignment = 1
+
+[node name="Name" type="Label" parent="Background/MarginContainer/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Player Name"
+vertical_alignment = 1
+
+[node name="Score" type="Label" parent="Background/MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "100 pts"
+horizontal_alignment = 2
+vertical_alignment = 1

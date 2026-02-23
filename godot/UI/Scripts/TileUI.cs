@@ -40,7 +40,7 @@ public partial class TileUI : TextureRect
         {
             try 
             {
-                Texture = GD.Load<Texture2D>("res://Assets/Tile.png");
+                Texture = GD.Load<Texture2D>("res://Assets/Tile_v2.png");
             }
             catch (Exception) {}
         }

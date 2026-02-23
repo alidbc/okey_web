@@ -1,0 +1,120 @@
+[gd_scene load_steps=3 format=3 uid="uid://b25r1nidj8bs7"]
+
+[ext_resource type="Script" path="res://UI/Scripts/LobbyUI.cs" id="1_lobby"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.0941176, 0.113725, 0.152941, 1)
+
+[node name="Lobby" type="Control" node_paths=PackedStringArray("RoomCodeInput", "StatusLabel", "HostButton", "JoinButton", "OfflineButton", "BrowseButton", "RoomListContainer")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_lobby")
+RoomCodeInput = NodePath("CenterContainer/MainLayout/PrivateSection/RoomCodeInput")
+StatusLabel = NodePath("CenterContainer/MainLayout/PrivateSection/StatusLabel")
+HostButton = NodePath("CenterContainer/MainLayout/PrivateSection/HostButton")
+JoinButton = NodePath("CenterContainer/MainLayout/PrivateSection/JoinButton")
+OfflineButton = NodePath("CenterContainer/MainLayout/PrivateSection/OfflineButton")
+BrowseButton = NodePath("CenterContainer/MainLayout/PublicSection/BrowseButton")
+RoomListContainer = NodePath("CenterContainer/MainLayout/PublicSection/ScrollContainer/RoomListContainer")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MainLayout" type="HBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 80
+
+[node name="PrivateSection" type="VBoxContainer" parent="CenterContainer/MainLayout"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="CenterContainer/MainLayout/PrivateSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "OKEY RUMMY PRO"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/MainLayout/PrivateSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = "Select a game mode"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/MainLayout/PrivateSection"]
+layout_mode = 2
+
+[node name="HostButton" type="Button" parent="CenterContainer/MainLayout/PrivateSection"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "CREATE ONLINE ROOM"
+
+[node name="HSeparator2" type="HSeparator" parent="CenterContainer/MainLayout/PrivateSection"]
+layout_mode = 2
+
+[node name="RoomCodeInput" type="LineEdit" parent="CenterContainer/MainLayout/PrivateSection"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+placeholder_text = "Enter 4-digit code"
+alignment = 1
+max_length = 4
+
+[node name="JoinButton" type="Button" parent="CenterContainer/MainLayout/PrivateSection"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "JOIN ROOM"
+
+[node name="HSeparator3" type="HSeparator" parent="CenterContainer/MainLayout/PrivateSection"]
+layout_mode = 2
+
+[node name="OfflineButton" type="Button" parent="CenterContainer/MainLayout/PrivateSection"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "PLAY OFFLINE (BOTS)"
+
+[node name="VSeparator" type="VSeparator" parent="CenterContainer/MainLayout"]
+layout_mode = 2
+
+[node name="PublicSection" type="VBoxContainer" parent="CenterContainer/MainLayout"]
+custom_minimum_size = Vector2(350, 0)
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="Subtitle" type="Label" parent="CenterContainer/MainLayout/PublicSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "PUBLIC ROOMS"
+horizontal_alignment = 1
+
+[node name="BrowseButton" type="Button" parent="CenterContainer/MainLayout/PublicSection"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "FIND PUBLIC GAMES"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/MainLayout/PublicSection"]
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="RoomListContainer" type="VBoxContainer" parent="CenterContainer/MainLayout/PublicSection/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 5

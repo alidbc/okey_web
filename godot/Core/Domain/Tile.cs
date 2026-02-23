@@ -8,11 +8,13 @@ namespace OkieRummyGodot.Core.Domain;
 /// </summary>
 public class Tile
 {
-    public string Id { get; }
-    public int Value { get; }
-    public TileColor Color { get; }
-    public bool IsFakeOkey { get; }
+    public string Id { get; set; }
+    public int Value { get; set; }
+    public TileColor Color { get; set; }
+    public bool IsFakeOkey { get; set; }
     public bool IsWildcard { get; set; }
+
+    public Tile() { } // Required for serialization
 
     public Tile(string id, int value, TileColor color, bool isFakeOkey = false)
     {
@@ -20,7 +22,7 @@ public class Tile
         Value = value;
         Color = color;
         IsFakeOkey = isFakeOkey;
-        IsWildcard = isFakeOkey; // Fake Okey is always a wildcard initially
+        IsWildcard = false; 
     }
     
     // For cloning when dealing with hand evaluation

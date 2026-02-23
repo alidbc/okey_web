@@ -17,8 +17,9 @@ IndicatorContainer = NodePath("IndicatorContainer")
 layout_mode = 2
 
 [node name="IndicatorContainer" type="Control" parent="."]
-custom_minimum_size = Vector2(75, 100)
+custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
+mouse_filter = 2
 
 [node name="IndicatorSlot" type="ColorRect" parent="IndicatorContainer"]
 layout_mode = 1
@@ -27,14 +28,15 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 color = Color(0, 0, 0, 0.2)
 
 [node name="TileUI" parent="IndicatorContainer" instance=ExtResource("3_tile")]
 layout_mode = 1
-offset_left = -32.5
-offset_top = -45.0
-offset_right = 32.5
-offset_bottom = 45.0
+offset_left = -37.5
+offset_top = -52.0
+offset_right = 37.5
+offset_bottom = 52.0
 
 [node name="IndicatorBorder" type="ReferenceRect" parent="IndicatorContainer"]
 layout_mode = 1
@@ -43,12 +45,13 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -32.5
-offset_top = -45.0
-offset_right = 32.5
-offset_bottom = 45.0
+offset_left = -37.5
+offset_top = -52.0
+offset_right = 37.5
+offset_bottom = 52.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 border_color = Color(0.960784, 0.509804, 0.0470588, 0.5)
 border_width = 2.0
 editor_only = false

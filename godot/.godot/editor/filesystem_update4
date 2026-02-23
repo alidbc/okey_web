@@ -1,8 +1,0 @@
-res://UI/Scripts/DeckUI.cs
-res://UI/Scripts/OpponentUI.cs
-res://UI/Scripts/RackUI.cs
-res://UI/Scripts/MainEngine.cs
-res://UI/Scripts/TileUI.cs
-res://UI/Scripts/BoardCenterUI.cs
-res://UI/Scripts/RackSlotUI.cs
-res://UI/Scripts/DiscardZoneUI.cs

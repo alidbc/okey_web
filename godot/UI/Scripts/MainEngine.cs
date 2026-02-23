@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using OkieRummyGodot.Core.Application;
 using OkieRummyGodot.Core.Domain;
 using System;
@@ -23,9 +24,16 @@ public partial class MainEngine : Control
     [Export] public DiscardZoneUI DZ3; // Top to Left
     [Export] public DiscardZoneUI DZ4; // Left to Local
     
+    [Export] public Button StartGameButton;
+    [Export] public PackedScene GameEndUIScreen;
+    public Core.Networking.NetworkManager NetworkManager;
+    
+    private bool _isMultiplayer = false;
+    
     // Wire this up manually
     private BoardCenterUI _boardCenter;
-    private PanelContainer _localNameplate;
+    private NameplateUI _localNameplate;
+    private Label _localNameLabel;
     private StyleBoxFlat _localActiveStyle;
     private StyleBoxFlat _localInactiveStyle;
     
@@ -34,9 +42,15 @@ public partial class MainEngine : Control
 
     private TileUI[] _dzTiles = new TileUI[4];
     private int _activeAnimationsCount = 0;
+    private Godot.Timer _feedbackTimer;
+    private bool _isShowingFeedback = false;
+    private Control _lastCheckTarget;
+    private Color _originalStatusColor;
 
     public override void _Ready()
     {
+        // The NetworkManager is an Autoload in Phase 3
+        NetworkManager = GetNodeOrNull<Core.Networking.NetworkManager>("/root/NetworkManager");
         _boardCenter = GetNodeOrNull<BoardCenterUI>("CenterLayout/MiddleRow/BoardCenter");
         
         // Initialize DZ Tiles
@@ -60,22 +74,19 @@ public partial class MainEngine : Control
         
         if (DZ1 != null) DZ1.IsValidDiscardTarget = true;
         
-        if (_boardCenter?.DeckCountBadge != null)
-        {
-            _boardCenter.DeckCountBadge.Connect("DeckClicked", new Callable(this, nameof(OnDrawFromDeckPressed)));
-            _boardCenter.DeckCountBadge.TilePeeker = () => _matchManager.PeekDeck();
-        }
+        // MatchManager-dependent wiring moved to InitializeMultiplayer/StartNewGame
         
-        _localNameplate = GetNodeOrNull<PanelContainer>("CenterLayout/BottomRow/Nameplate");
+        _localNameplate = GetNodeOrNull<NameplateUI>("CenterLayout/BottomRow/Nameplate");
         if (_localNameplate != null)
         {
+            _localNameLabel = _localNameplate.GetNodeOrNull<Label>("HBoxContainer/VBoxContainer/Name");
             _localInactiveStyle = (StyleBoxFlat)_localNameplate.GetThemeStylebox("panel");
             _localActiveStyle = (StyleBoxFlat)_localInactiveStyle?.Duplicate();
             if (_localActiveStyle != null)
             {
                 _localActiveStyle.BorderColor = new Color(0.98f, 0.80f, 0.08f, 1f); // yellow-400
                 _localActiveStyle.ShadowColor = new Color(0.98f, 0.80f, 0.08f, 0.8f);
-                _localActiveStyle.ShadowSize = 25;
+                _localActiveStyle.ShadowSize = 15;
             }
         }
         
@@ -92,12 +103,162 @@ public partial class MainEngine : Control
         // In Okey, you draw from the player on your Left.
         // Visually, the player's discard zone sits on the left side of the screen.
         // You click "your" left discard pile to draw the tile *they* gave to *you*.
-        if (DZ4 != null) 
+        // Drawing source connections are now handled in ConnectDynamicUI
+
+        if (_boardCenter != null)
         {
-            DZ4.Connect("DiscardPileClicked", new Callable(this, nameof(OnDrawFromDiscardPressed)));
+            _boardCenter.Connect("WinConditionDropped", new Callable(this, nameof(OnCheckWinCondition)));
         }
 
-        StartNewGame();
+        // --- DEBUG ONLY: Victory Bypass Button ---
+        var debugBtn = new Button { Text = "DEBUG: FORCE VICTORY" };
+        debugBtn.Pressed += () => {
+            GD.Print("MainEngine: Debug Victory Triggered");
+            _matchManager.Status = GameStatus.Victory;
+            _matchManager.WinnerId = _localPlayer?.Id ?? "debug";
+            _matchManager.WinnerTiles = new List<Tile>(_localPlayer?.Rack ?? new Tile[26]);
+            GD.Print($"MainEngine: Debug Victory - WinnerTiles count: {_matchManager.WinnerTiles.Count}");
+            ShowGameEndUI();
+        };
+        debugBtn.SetPosition(new Vector2(10, 10));
+        AddChild(debugBtn);
+        // ------------------------------------------
+    
+        if (_localNameplate != null)
+        {
+            _localNameplate.Connect("WinConditionDropped", new Callable(this, nameof(OnCheckWinCondition)));
+        }
+
+        if (_boardCenter?.DeckCountBadge != null)
+        {
+            _boardCenter.DeckCountBadge.Connect("WinConditionDropped", new Callable(this, nameof(OnCheckWinCondition)));
+        }
+
+        _feedbackTimer = new Godot.Timer();
+        _feedbackTimer.OneShot = true;
+        _feedbackTimer.WaitTime = 3.0f;
+        if (StatusLabel != null)
+        {
+            _originalStatusColor = StatusLabel.SelfModulate;
+        }
+
+        _feedbackTimer.Timeout += () => {
+            _isShowingFeedback = false;
+            if (StatusLabel != null)
+            {
+                StatusLabel.SelfModulate = _originalStatusColor;
+            }
+            HandleGameStateChanged();
+        };
+        AddChild(_feedbackTimer);
+
+        if (NetworkManager != null && NetworkManager.IsActive)
+        {
+            _isMultiplayer = true;
+            InitializeMultiplayer();
+        }
+        else
+        {
+            _isMultiplayer = false;
+            StartNewGame();
+        }
+    }
+
+    private void InitializeMultiplayer()
+    {
+        if (NetworkManager != null)
+        {
+            NetworkManager.BoardStateSynced += OnBoardStateSynced;
+            NetworkManager.PrivateRackSynced += OnPrivateRackSynced;
+            NetworkManager.WinCheckResultReceived += OnWinCheckResultReceived;
+        }
+
+        _matchManager = new MatchManager();
+        // We don't start the game locally; we wait for sync
+        _matchManager.OnGameStateChanged += HandleGameStateChanged;
+
+        // In multiplayer, we use p0, p1, p2, p3 to match server indices
+        // We only initialize up to the count provided by server
+        for (int i = 0; i < _matchManager.Players.Count; i++)
+        {
+            if (i == NetworkManager.LocalPlayerIndex) _localPlayer = _matchManager.Players[i];
+        }
+
+        if (_localPlayer == null || _localPlayer.Id != $"p{NetworkManager.LocalPlayerIndex}")
+        {
+            string initialName = NetworkManager.Multiplayer.GetUniqueId().ToString();
+            _localPlayer = new Player($"p{NetworkManager.LocalPlayerIndex}", initialName, "");
+        }
+
+        if (!_matchManager.Players.Contains(_localPlayer))
+        {
+            _matchManager.AddPlayer(_localPlayer);
+        }
+
+        LocalRackUI?.Initialize(_localPlayer);
+        {
+            if (!LocalRackUI.IsConnected("DrawToSlot", new Callable(this, nameof(OnDrawToSlot))))
+            {
+                LocalRackUI.Connect("DrawToSlot", new Callable(this, nameof(OnDrawToSlot)));
+            }
+            if (!LocalRackUI.IsConnected("TileMoved", new Callable(this, nameof(OnRackTileMoved))))
+            {
+                LocalRackUI.Connect("TileMoved", new Callable(this, nameof(OnRackTileMoved)));
+            }
+        }
+
+        if (StartGameButton != null)
+        {
+            StartGameButton.Pressed += OnStartGamePressed;
+        }
+
+        InitializeMultiplayerUI();
+
+        ConfigureMatchManagerWiring();
+
+        GD.Print("MainEngine: Initialized in Multiplayer mode. Requesting state sync...");
+        NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestSync));
+        
+        ConnectDynamicUI();
+    }
+
+    private void ConnectDynamicUI()
+    {
+        if (_localPlayer == null) return;
+        
+        // Disconnect all first to be safe
+        DiscardZoneUI[] dzs = { DZ1, DZ2, DZ3, DZ4 };
+        foreach (var dz in dzs)
+        {
+            if (dz != null && dz.IsConnected("DiscardPileClicked", new Callable(this, nameof(OnDrawFromDiscardPressed))))
+            {
+                dz.Disconnect("DiscardPileClicked", new Callable(this, nameof(OnDrawFromDiscardPressed)));
+            }
+        }
+
+        // Connect the specific source for the local player (their LEFT neighbor's discard)
+        var mySource = GetDiscardSourceForPlayer(_localPlayer.Id) as DiscardZoneUI;
+        if (mySource != null)
+        {
+            mySource.Connect("DiscardPileClicked", new Callable(this, nameof(OnDrawFromDiscardPressed)));
+            GD.Print($"MainEngine: Dynamic draw source connected to {mySource.Name}");
+        }
+    }
+
+    private void InitializeMultiplayerUI()
+    {
+        if (NetworkManager == null || _matchManager == null) return;
+        int count = _matchManager.Players.Count;
+        
+        RightOpponent?.Initialize(_matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 1), true);
+        TopOpponent?.Initialize(_matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 2), false);
+        LeftOpponent?.Initialize(_matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 3), false);
+        
+        if (_localPlayer != null)
+        {
+            LocalRackUI?.Initialize(_localPlayer);
+            if (_localNameLabel != null) _localNameLabel.Text = _localPlayer.Name;
+        }
     }
 
     private void StartNewGame()
@@ -108,7 +269,7 @@ public partial class MainEngine : Control
         _matchManager.OnTileDiscarded += OnMatchTileDiscarded;
 
         // Initialize Players
-        _localPlayer = new Player("local_user", "OkeyPro_99", "avatar_url");
+        _localPlayer = new Player("local_user", "You", "avatar_url");
         _matchManager.AddPlayer(_localPlayer);
         
         var bot1 = new BotPlayer("bot_1", "Elena", "", _matchManager);
@@ -125,8 +286,11 @@ public partial class MainEngine : Control
         if (LocalRackUI != null)
         {
             LocalRackUI.Connect("DrawToSlot", new Callable(this, nameof(OnDrawToSlot)));
+            LocalRackUI.Connect("TileMoved", new Callable(this, nameof(OnRackTileMoved)));
         }
         _boardCenter?.SetIndicatorTile(_matchManager.IndicatorTile);
+        
+        ConnectDynamicUI();
         
         // Initialize Bots in UI (Assumes specific seating: local = 0, right = 1, top = 2, left = 3)
         RightOpponent?.Initialize(bot1, true); // true = reverse layout for right
@@ -136,11 +300,26 @@ public partial class MainEngine : Control
         TopOpponent?.Initialize(bot2, false);
         LeftOpponent?.Initialize(bot3, false);
         
+        ConfigureMatchManagerWiring();
+
         _botTimer = new Godot.Timer();
         AddChild(_botTimer);
         _botTimer.Timeout += ProcessBotTurn;
         
         HandleGameStateChanged();
+    }
+
+    private void ConfigureMatchManagerWiring()
+    {
+        if (_boardCenter?.DeckCountBadge != null)
+        {
+            // Connect only if not already connected (or clear first)
+            if (!_boardCenter.DeckCountBadge.IsConnected("DeckClicked", new Callable(this, nameof(OnDrawFromDeckPressed))))
+            {
+                _boardCenter.DeckCountBadge.Connect("DeckClicked", new Callable(this, nameof(OnDrawFromDeckPressed)));
+            }
+            _boardCenter.DeckCountBadge.TilePeeker = () => _matchManager?.PeekDeck();
+        }
     }
 
     private void HandleGameStateChanged()
@@ -151,31 +330,66 @@ public partial class MainEngine : Control
     private void HandleGameStateChanged(bool force)
     {
         // Don't update the UI while a tile is flying, unless it's the final refresh
-        if (_activeAnimationsCount > 0) return;
+        if (_activeAnimationsCount > 0 && !force) return;
 
-        if (_matchManager.Status == GameStatus.Victory)
+        if (_matchManager.Status == GameStatus.Victory || _matchManager.Status == GameStatus.GameOver)
         {
-            if (StatusLabel != null) StatusLabel.Text = "Victory! Someone won!";
+            if (StatusLabel != null) 
+                StatusLabel.Text = _matchManager.Status == GameStatus.Victory ? "Victory!" : "Game Over: Deck Exhausted";
+            
+            ShowGameEndUI();
             return;
         }
 
         LocalRackUI?.RefreshVisuals();
         UpdateStatusLabel();
-        _boardCenter?.UpdateDeckCount(_matchManager.GameDeck.RemainingCount);
+        if (_matchManager.GameDeck != null && _boardCenter != null)
+        {
+            _boardCenter.UpdateDeckCount(_matchManager.GameDeck.RemainingCount);
+        }
         
-        // Highlight active opponent
+        if (_matchManager.Players.Count == 0) return;
+        
         var activePlayer = _matchManager.Players[_matchManager.CurrentPlayerIndex];
-        RightOpponent?.SetActive(activePlayer.Id == "bot_1");
-        TopOpponent?.SetActive(activePlayer.Id == "bot_2");
-        LeftOpponent?.SetActive(activePlayer.Id == "bot_3");
+        
+        // Highlight active player
+        int activeIdx = _matchManager.CurrentPlayerIndex;
+        int count = _matchManager.Players.Count;
+
+        // Seating Visibility
+        if (RightOpponent != null) RightOpponent.Visible = _matchManager.Players.Any(p => GetRelativeIndex(p.Id) == 1);
+        if (TopOpponent != null) TopOpponent.Visible = _matchManager.Players.Any(p => GetRelativeIndex(p.Id) == 2);
+        if (LeftOpponent != null) LeftOpponent.Visible = _matchManager.Players.Any(p => GetRelativeIndex(p.Id) == 3);
+
+        // Highlight active seats
+        RightOpponent?.SetActive(RightOpponent.Visible && activeIdx == _matchManager.Players.FindIndex(p => GetRelativeIndex(p.Id) == 1));
+        TopOpponent?.SetActive(TopOpponent.Visible && activeIdx == _matchManager.Players.FindIndex(p => GetRelativeIndex(p.Id) == 2));
+        LeftOpponent?.SetActive(LeftOpponent.Visible && activeIdx == _matchManager.Players.FindIndex(p => GetRelativeIndex(p.Id) == 3));
+
+
+        // Manage Discard Zone Visibility: Only show zones that correspond to an active player's seating
+        // DZ1 (Right), DZ2 (Top), DZ3 (Left), DZ4 (Self/Draw-Source) - wait, let's align with plan:
+        // relIdx 0 (Self) -> DZ1
+        // relIdx 1 (Right) -> DZ2
+        // relIdx 2 (Top) -> DZ3
+        // relIdx 3 (Left) -> DZ4
+        // Manage Discard Zone Visibility: Only show zones that ANY player is discarding into.
+        if (DZ1 != null) DZ1.Visible = _matchManager.Players.Any(p => GetDiscardTargetForPlayer(p.Id) == DZ1);
+        if (DZ2 != null) DZ2.Visible = _matchManager.Players.Any(p => GetDiscardTargetForPlayer(p.Id) == DZ2);
+        if (DZ3 != null) DZ3.Visible = _matchManager.Players.Any(p => GetDiscardTargetForPlayer(p.Id) == DZ3);
+        if (DZ4 != null) DZ4.Visible = _matchManager.Players.Any(p => GetDiscardTargetForPlayer(p.Id) == DZ4);
         
         if (_localNameplate != null && _localActiveStyle != null && _localInactiveStyle != null)
         {
             bool isLocalTurn = activePlayer.Id == _localPlayer.Id;
             _localNameplate.AddThemeStyleboxOverride("panel", isLocalTurn ? _localActiveStyle : _localInactiveStyle);
             
-            // Manage Discarding
-            if (DZ1 != null) DZ1.IsValidDiscardTarget = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Discard;
+            // Manage Discarding - Apply to THIS player's absolute target
+            var myTarget = GetDiscardTargetForPlayer(_localPlayer.Id) as DiscardZoneUI;
+            if (myTarget != null)
+            {
+                myTarget.IsValidDiscardTarget = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Discard;
+            }
 
             // Manage Drawing
             bool canDraw = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Draw;
@@ -183,18 +397,36 @@ public partial class MainEngine : Control
             if (_boardCenter?.DeckCountBadge != null)
                 _boardCenter.DeckCountBadge.IsInteractable = canDraw;
 
-            // DZ4 is the local player's draw source (the pile to their left)
-            if (DZ4 != null) DZ4.IsInteractable = canDraw;
+            if (_localNameplate != null)
+                _localNameplate.IsInteractable = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Discard;
 
-            // Reset interaction on other DZs just in case
+            // DRAW SOURCE is dynamic
+            var mySource = GetDiscardSourceForPlayer(_localPlayer.Id) as DiscardZoneUI;
+            
+            // Disable all first
+            if (DZ1 != null) DZ1.IsInteractable = false;
             if (DZ2 != null) DZ2.IsInteractable = false;
             if (DZ3 != null) DZ3.IsInteractable = false;
-            // DZ1 is only for discarding, not for drawing for the local player.
-            if (DZ1 != null) DZ1.IsInteractable = false;
+            if (DZ4 != null) DZ4.IsInteractable = false;
+
+            // Only enable my source
+            if (mySource != null) mySource.IsInteractable = canDraw;
+
+            // Manage Win Condition Check (Drag to Indicator)
+            if (_boardCenter != null)
+                _boardCenter.IsInteractable = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Discard;
         }
 
-        // If it's a bot's turn, trigger the timer
-        if (activePlayer.IsBot)
+        // Multiplayer: Manage Start Button Visibility
+        if (StartGameButton != null)
+        {
+            bool isHost = _isMultiplayer && (NetworkManager?.IsHost() ?? false);
+            bool isLobby = _matchManager.Status == GameStatus.Menu;
+            StartGameButton.Visible = isHost && isLobby;
+        }
+
+        // If it's a bot's turn and we are NOT in multiplayer, trigger the timer
+        if (activePlayer.IsBot && !_isMultiplayer)
         {
             _botTimer.Start(1.5f); // Bot thinking time before acting
         }
@@ -204,7 +436,12 @@ public partial class MainEngine : Control
 
     private void UpdateStatusLabel()
     {
-        if (StatusLabel == null) return;
+        if (StatusLabel == null || _isShowingFeedback) return;
+        if (_matchManager == null || _matchManager.Players.Count == 0)
+        {
+            StatusLabel.Text = _matchManager?.Status == GameStatus.Menu ? "Waiting in Lobby..." : "Initializing...";
+            return;
+        }
         
         var activePlayer = _matchManager.Players[_matchManager.CurrentPlayerIndex];
         if (activePlayer.Id == _localPlayer.Id)
@@ -221,42 +458,39 @@ public partial class MainEngine : Control
     {
         if (_matchManager == null) return;
 
-        // Circular flow: 
-        // Local discards to DZ1. Bot1 draws from DZ1.
-        // Bot1 discards to DZ2. Bot2 draws from DZ2.
-        // Bot2 discards to DZ3. Bot3 draws from DZ3.
-        // Bot3 discards to DZ4. Local draws from DZ4.
-        
         var dzNodes = new DiscardZoneUI[] { DZ1, DZ2, DZ3, DZ4 };
-        string[] playerIds = { "local_user", "bot_1", "bot_2", "bot_3" };
-
+        
+        // Clear all zones first
         for (int i = 0; i < 4; i++)
         {
-            string pid = playerIds[i];
-            _matchManager.PlayerDiscardPiles.TryGetValue(pid, out var pile);
+            if (_dzTiles[i] != null) _dzTiles[i].Visible = false;
+            if (dzNodes[i] != null) 
+            {
+                dzNodes[i].HasTile = false;
+                dzNodes[i].CurrentTile = null;
+            }
+        }
+
+        // Fill from active players
+        foreach (var p in _matchManager.Players)
+        {
+            var targetZone = GetDiscardTargetForPlayer(p.Id) as DiscardZoneUI;
+            if (targetZone == null) continue;
+
+            // Find index of this targetZone in dzNodes
+            int dzIdx = -1;
+            for(int i=0; i<4; i++) if(dzNodes[i] == targetZone) dzIdx = i;
+            if (dzIdx == -1) continue;
+
+            _matchManager.PlayerDiscardPiles.TryGetValue(p.Id, out var pile);
             var tile = pile?.LastOrDefault();
             
-            if (_dzTiles[i] != null)
+            if (tile != null && _dzTiles[dzIdx] != null)
             {
-                if (tile == null) 
-                {
-                    _dzTiles[i].Visible = false;
-                    if (dzNodes[i] != null)
-                    {
-                        dzNodes[i].HasTile = false;
-                        dzNodes[i].CurrentTile = null;
-                    }
-                }
-                else
-                {
-                    _dzTiles[i].SetTileData(tile);
-                    _dzTiles[i].Visible = !_dzTiles[i].IsVisualSuppressed;
-                    if (dzNodes[i] != null)
-                    {
-                        dzNodes[i].HasTile = true;
-                        dzNodes[i].CurrentTile = tile;
-                    }
-                }
+                _dzTiles[dzIdx].SetTileData(tile);
+                _dzTiles[dzIdx].Visible = !_dzTiles[dzIdx].IsVisualSuppressed;
+                targetZone.HasTile = true;
+                targetZone.CurrentTile = tile;
             }
         }
     }
@@ -272,10 +506,27 @@ public partial class MainEngine : Control
         }
     }
 
+    private void OnStartGamePressed()
+    {
+        if (_isMultiplayer && NetworkManager != null)
+        {
+            NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestStartGame));
+        }
+    }
+
     // Called by UI events
     public void OnDrawFromDeckPressed()
     {
-        _activeAnimationsCount++;
+        if (_isMultiplayer)
+        {
+            NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestDrawFromDeck), -1);
+            return;
+        }
+
+        if (_activeAnimationsCount > 0) return;
+        bool isLocalTurn = _matchManager.Players[_matchManager.CurrentPlayerIndex].Id == _localPlayer.Id;
+        if (!isLocalTurn || _matchManager.CurrentPhase != TurnPhase.Draw) return;
+        
         int landedIndex = _matchManager.DrawFromDeck(_localPlayer.Id);
         if (landedIndex != -1)
         {
@@ -283,14 +534,22 @@ public partial class MainEngine : Control
         }
         else
         {
-            _activeAnimationsCount--;
             HandleGameStateChanged(true);
         }
     }
 
     public void OnDrawFromDiscardPressed()
     {
-        _activeAnimationsCount++;
+        if (_isMultiplayer)
+        {
+            NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestDrawFromDiscard), -1);
+            return;
+        }
+
+        if (_activeAnimationsCount > 0) return;
+        bool isLocalTurn = _matchManager.Players[_matchManager.CurrentPlayerIndex].Id == _localPlayer.Id;
+        if (!isLocalTurn || _matchManager.CurrentPhase != TurnPhase.Draw) return;
+        
         int landedIndex = _matchManager.DrawFromDiscard(_localPlayer.Id);
         if (landedIndex != -1)
         {
@@ -298,7 +557,6 @@ public partial class MainEngine : Control
         }
         else
         {
-            _activeAnimationsCount--;
             HandleGameStateChanged(true);
         }
     }
@@ -312,6 +570,19 @@ public partial class MainEngine : Control
     private void OnDrawToSlot(bool fromDiscard, int targetIndex, bool animate)
     {
         if (animate) _activeAnimationsCount++;
+
+        if (_isMultiplayer)
+        {
+            if (fromDiscard)
+            {
+                NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestDrawFromDiscard), targetIndex);
+            }
+            else
+            {
+                NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestDrawFromDeck), targetIndex);
+            }
+            return;
+        }
 
         int landedIndex = -1;
         if (fromDiscard)
@@ -391,15 +662,151 @@ public partial class MainEngine : Control
         }
     }
 
+    private void OnRackTileMoved(int fromIndex, int toIndex)
+    {
+        if (_isMultiplayer)
+        {
+            NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestMoveTile), fromIndex, toIndex);
+        }
+    }
+
     public void OnDiscardTileDropped(int rackIndex, Control dropTarget = null)
     {
+        if (_isMultiplayer)
+        {
+            NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestDiscard), rackIndex);
+            return;
+        }
+
         if (_matchManager.DiscardTile(_localPlayer.Id, rackIndex))
         {
             // Removed AnimateTileMove for local player per user request, 
             // as they are already dragging the tile physically.
-            HandleGameStateChanged();
+            HandleGameStateChanged(true);
             LocalRackUI.RefreshVisuals();
         }
+    }
+
+    private void ShowGameEndUI()
+    {
+        if (GameEndUIScreen == null) return;
+        
+        // Check if already showing
+        if (GetNodeOrNull("GameEndUI") != null) return;
+        
+        var endUI = GameEndUIScreen.Instantiate<GameEndUI>();
+        endUI.Name = "GameEndUI";
+        AddChild(endUI);
+        
+        var scores = _matchManager.GetPlayerScores();
+        bool isDeckEmpty = _matchManager.Status == GameStatus.GameOver;
+        
+        endUI.DisplayResults(scores, isDeckEmpty);
+        if (!isDeckEmpty)
+        {
+            GD.Print($"MainEngine: Displaying Winner Tiles. Count: {_matchManager.WinnerTiles?.Count ?? 0}");
+            endUI.DisplayWinnerTiles(_matchManager.WinnerTiles);
+        }
+        endUI.PlayAgain += OnPlayAgain;
+        endUI.MainMenu += OnMainMenu;
+    }
+
+    private void OnPlayAgain()
+    {
+        GD.Print("MainEngine: Play Again pressed. Navigating to Lobby...");
+        GetTree().ChangeSceneToFile("res://UI/Scenes/Lobby.tscn");
+    }
+
+    private void OnMainMenu()
+    {
+        GD.Print("MainEngine: Main Menu pressed. Navigating to Lobby...");
+        GetTree().ChangeSceneToFile("res://UI/Scenes/Lobby.tscn");
+    }
+
+    private void OnWinCheckResultReceived(bool success, string message)
+    {
+        GD.Print($"MainEngine: Win check result received: success={success}, message={message}");
+        _isShowingFeedback = true;
+        _feedbackTimer.Start(3.0f);
+        
+        if (success)
+        {
+            if (StatusLabel != null)
+            {
+                StatusLabel.Text = message;
+                StatusLabel.SelfModulate = new Color(0.2f, 1.0f, 0.2f); // Green
+            }
+            HandleGameStateChanged(true);
+        }
+        else
+        {
+            if (StatusLabel != null)
+            {
+                StatusLabel.Text = $"Cannot finish: {message}";
+                StatusLabel.SelfModulate = new Color(1.0f, 0.2f, 0.2f); // Red
+            }
+            GD.Print($"Win condition failed: {message}");
+            
+            // Shake the target that triggered the check
+            if (_lastCheckTarget != null)
+            {
+                if (_lastCheckTarget.HasMethod("Shake")) _lastCheckTarget.Call("Shake");
+                else if (_lastCheckTarget == _boardCenter) _boardCenter.ShakeIndicator();
+            }
+            else
+            {
+                _boardCenter?.ShakeIndicator();
+            }
+        }
+        HandleGameStateChanged();
+    }
+
+    private void OnCheckWinCondition(int rackIndex) => OnCheckWinCondition(rackIndex, null);
+
+    private void OnCheckWinCondition(int rackIndex, Control target)
+    {
+        GD.Print($"MainEngine: OnCheckWinCondition triggered. Target: {target?.Name ?? "null"}");
+        _lastCheckTarget = target;
+        if (_isMultiplayer)
+        {
+            NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestCheckWinCondition), rackIndex);
+            return;
+        }
+
+        var (success, message) = _matchManager.FinishGame(_localPlayer.Id, rackIndex);
+        
+        _isShowingFeedback = true;
+        _feedbackTimer.Start(3.0f);
+        
+        if (success)
+        {
+            if (StatusLabel != null)
+            {
+                StatusLabel.Text = message;
+                StatusLabel.SelfModulate = new Color(0.2f, 1.0f, 0.2f); // Green
+            }
+            HandleGameStateChanged(true);
+        }
+        else
+        {
+            if (StatusLabel != null)
+            {
+                StatusLabel.Text = $"Cannot finish: {message}";
+                StatusLabel.SelfModulate = new Color(1.0f, 0.2f, 0.2f); // Red
+            }
+            GD.Print($"Win condition failed: {message}");
+            
+            if (target != null)
+            {
+                if (target.HasMethod("Shake")) target.Call("Shake");
+                else if (target == _boardCenter) _boardCenter.ShakeIndicator();
+            }
+            else
+            {
+                _boardCenter?.ShakeIndicator();
+            }
+        }
+        HandleGameStateChanged();
     }
 
     private void OnMatchTileDrawn(string playerId, Tile tile, bool fromDiscard)
@@ -442,11 +849,54 @@ public partial class MainEngine : Control
         if (sourceNode != null && targetNode != null)
         {
             _activeAnimationsCount++;
-            AnimateTileMove(sourceNode, targetNode, tile, targetTileUI, null, () => {
+            AnimateTileMove(sourceNode, targetNode, tile, null, null, () => {
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
             });
         }
+    }
+
+    private int GetAbsoluteIndex(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return -1;
+        if (id.StartsWith("p") && int.TryParse(id.Substring(1), out int p)) return p;
+        return id switch { "local_user" => 0, "bot_1" => 1, "bot_2" => 2, "bot_3" => 3, _ => -1 };
+    }
+
+    private string GetNextPlayerId(string currentId)
+    {
+        int idx = _matchManager.Players.FindIndex(p => p.Id == currentId);
+        if (idx == -1 || _matchManager.Players.Count == 0) return null;
+        return _matchManager.Players[(idx + 1) % _matchManager.Players.Count].Id;
+    }
+
+    private string GetPrevPlayerId(string currentId)
+    {
+        int idx = _matchManager.Players.FindIndex(p => p.Id == currentId);
+        if (idx == -1 || _matchManager.Players.Count == 0) return null;
+        return _matchManager.Players[(idx - 1 + _matchManager.Players.Count) % _matchManager.Players.Count].Id;
+    }
+
+    private int GetRelativeIndex(string id)
+    {
+        int myIdx = _isMultiplayer ? NetworkManager.LocalPlayerIndex : 0;
+        int pIdx = GetAbsoluteIndex(id);
+        if (pIdx == -1) return -1;
+
+        int count = _matchManager.Players.Count;
+        if (count == 0) return -1;
+        int diff = (pIdx - myIdx + count) % count;
+
+        if (_isMultiplayer)
+        {
+            return count switch
+            {
+                2 => diff == 0 ? 0 : 2, // 0 -> Bottom, 1 -> Top (Opposite)
+                3 => diff == 0 ? 0 : (diff == 1 ? 1 : 3), // 0 -> Bottom, 1 -> Right, 2 -> Left
+                _ => diff // 4 players or fallback
+            };
+        }
+        return diff;
     }
 
     private TileUI GetDiscardTileUIAtNode(Control node)
@@ -460,37 +910,39 @@ public partial class MainEngine : Control
 
     private Control GetOpponentUIById(string id)
     {
-        if (id == "bot_1") return RightOpponent;
-        if (id == "bot_2") return TopOpponent;
-        if (id == "bot_3") return LeftOpponent;
-        return null; // Local
-    }
-
-    private Control GetDiscardSourceForPlayer(string playerId)
-    {
-        // playerId draws from the player to their left
-        if (playerId == "bot_1") return DZ4; // bot_1 draws from LZ (provided by bot_3 or local? wait)
-        // Correction on flow:
-        // Local discards to DZ1. Bot1 draws from DZ1.
-        // Bot1 discards to DZ2. Bot2 draws from DZ2.
-        // Bot2 discards to DZ3. Bot3 draws from DZ3.
-        // Bot3 discards to DZ4. Local draws from DZ4.
-        
-        if (playerId == "bot_1") return DZ1; 
-        if (playerId == "bot_2") return DZ2; 
-        if (playerId == "bot_3") return DZ3; 
-        if (playerId == "local_user") return DZ4; 
-        return null;
+        int relIdx = GetRelativeIndex(id);
+        return relIdx switch {
+            1 => RightOpponent,
+            2 => TopOpponent,
+            3 => LeftOpponent,
+            _ => null
+        };
     }
 
     private Control GetDiscardTargetForPlayer(string playerId)
     {
-        // playerId discards to the player to their right
-        if (playerId == "bot_1") return DZ2; 
-        if (playerId == "bot_2") return DZ3; 
-        if (playerId == "bot_3") return DZ4; 
-        if (playerId == "local_user") return DZ1; 
-        return null;
+        int relIdx = GetRelativeIndex(playerId);
+        int playerCount = _matchManager.Players.Count;
+
+        // Special case for 2-player games:
+        // We want the opponent (relIdx 2) to discard into DZ4 (Local's Left)
+        // so the local player (relIdx 0) draws from their left.
+        if (playerCount == 2 && relIdx == 2) return DZ4;
+
+        return relIdx switch {
+            0 => DZ1, // Local player discards to DZ1 (Right)
+            1 => DZ2, // Right player discards to DZ2
+            2 => DZ3, // Top player discards to DZ3
+            3 => DZ4, // Left player discards to DZ4
+            _ => null
+        };
+    }
+
+    private Control GetDiscardSourceForPlayer(string playerId)
+    {
+        // Any player draws FROM the previous player's discard zone.
+        string prevId = GetPrevPlayerId(playerId);
+        return GetDiscardTargetForPlayer(prevId);
     }
 
     public void OnSortPressed()
@@ -556,5 +1008,125 @@ public partial class MainEngine : Control
             ghostTile.QueueFree();
             onComplete?.Invoke();
         };
+    }
+    private void OnBoardStateSynced(string json)
+    {
+        try
+        {
+            var data = System.Text.Json.JsonSerializer.Deserialize<Core.Networking.BoardSyncData>(json);
+            if (data == null) 
+            {
+                GD.PrintErr("MainEngine: Board sync data is null after deserialization.");
+                return;
+            }
+
+            GD.Print($"MainEngine: Received Board Sync. Status: {data.Status}, Deck: {data.DeckCount}, Active: {data.ActivePlayer}");
+
+            _matchManager.IndicatorTile = data.Indicator;
+            _matchManager.CurrentPlayerIndex = data.ActivePlayer;
+            _matchManager.CurrentPhase = data.Phase;
+            _matchManager.Status = data.Status == "Active" ? GameStatus.Playing : (data.Status == "Victory" ? GameStatus.Victory : GameStatus.Menu);
+            _matchManager.WinnerId = data.WinnerId;
+            _matchManager.WinnerTiles = data.WinnerTiles;
+
+            if (_matchManager.Status == GameStatus.Victory)
+            {
+                // Delay slightly to allow the final sync to settle if needed
+                GetTree().CreateTimer(0.5f).Timeout += ShowGameEndUI;
+            }
+            
+            // Critical: Ensure player list is populated and local player is identified
+            if (_matchManager.Players.Count != data.Discards.Count)
+            {
+                GD.Print($"MainEngine: Player refresh needed ({_matchManager.Players.Count} vs {data.Discards.Count})");
+                _matchManager.Players.Clear();
+                _matchManager.PlayerDiscardPiles.Clear();
+                
+                for (int i = 0; i < data.Discards.Count; i++)
+                {
+                    string name = (data.PlayerNames != null && i < data.PlayerNames.Count) ? data.PlayerNames[i] : (i == NetworkManager.LocalPlayerIndex ? "You" : $"Player {i + 1}");
+                    var p = new Player($"p{i}", name, "");
+                    _matchManager.AddPlayer(p);
+                    if (i == NetworkManager.LocalPlayerIndex) _localPlayer = p;
+                }
+                InitializeMultiplayerUI();
+                ConnectDynamicUI(); // Re-connect signals for the new local player
+            }
+            else if (_localPlayer == null)
+            {
+                _localPlayer = _matchManager.Players[NetworkManager.LocalPlayerIndex];
+                InitializeMultiplayerUI();
+                ConnectDynamicUI();
+            }
+            else if (data.PlayerNames != null && data.PlayerNames.Count == _matchManager.Players.Count)
+            {
+                // Update names if they changed (e.g. from "Player X" to peer ID)
+                bool changed = false;
+                for (int i = 0; i < data.PlayerNames.Count; i++)
+                {
+                    if (_matchManager.Players[i].Name != data.PlayerNames[i])
+                    {
+                        _matchManager.Players[i].Name = data.PlayerNames[i];
+                        changed = true;
+                    }
+                }
+                if (changed) InitializeMultiplayerUI();
+            }
+
+            if (_localPlayer != null && _localNameLabel != null)
+            {
+                _localNameLabel.Text = _localPlayer.Name;
+            }
+
+            // Apply discards
+            for (int i = 0; i < data.Discards.Count; i++)
+            {
+                var pid = $"p{i}";
+                _matchManager.PlayerDiscardPiles[pid] = data.Discards[i];
+            }
+            
+            _matchManager.GameDeck = new Deck { RemainingCount = data.DeckCount };
+            
+            // Update Indicator UI
+            if (_boardCenter != null)
+            {
+                _boardCenter.SetIndicatorTile(data.Indicator);
+                _boardCenter.UpdateDeckCount(data.DeckCount);
+            }
+
+            // Always ensure UI signals are connected if they aren't
+            ConnectDynamicUI();
+
+            HandleGameStateChanged(true);
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"MainEngine: Error in OnBoardStateSynced: {ex.Message}\nJSON: {json}");
+        }
+    }
+
+    private void OnPrivateRackSynced(string json)
+    {
+        try
+        {
+            var data = System.Text.Json.JsonSerializer.Deserialize<Core.Networking.RackSyncData>(json);
+            if (data == null || _localPlayer == null) 
+            {
+                GD.PrintErr($"MainEngine: Rack sync failed. Data={data == null}, Player={_localPlayer == null}");
+                return;
+            }
+
+            GD.Print($"MainEngine: Received Rack Sync. Tiles: {data.Slots.Count}");
+            for (int i = 0; i < data.Slots.Count && i < _localPlayer.Rack.Length; i++)
+            {
+                _localPlayer.Rack[i] = data.Slots[i];
+            }
+
+            LocalRackUI?.RefreshVisuals();
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"MainEngine: Error in OnPrivateRackSynced: {ex.Message}\nJSON: {json}");
+        }
     }
 }

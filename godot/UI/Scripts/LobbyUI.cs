@@ -2,6 +2,7 @@ using Godot;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using OkieRummyGodot.Core.Domain;
 using OkieRummyGodot.Core.Application;
 
@@ -28,6 +29,8 @@ namespace OkieRummyGodot.UI.Scripts
         private bool _isBrowsing = false;
         private string _pendingRoomCode = "";
         private bool _isInRoom = false;
+        private bool _isTestHost = false;
+        private bool _isTestJoin = false;
 
         public override void _Ready()
         {
@@ -52,6 +55,21 @@ namespace OkieRummyGodot.UI.Scripts
             if (AddFriendButton != null) AddFriendButton.Pressed += OnAddFriendPressed;
 
             LoadFriends();
+
+            // --- Automated Test Mode ---
+            var args = OS.GetCmdlineArgs().Concat(OS.GetCmdlineUserArgs()).ToArray();
+            if (args.Contains("--test-marathon-host"))
+            {
+                _isTestHost = true;
+                GD.Print("LobbyUI: [TEST] Marathon Host mode detected. Auto-connecting...");
+                CallDeferred(nameof(RunAutoTest));
+            }
+            else if (args.Contains("--test-marathon-join"))
+            {
+                _isTestJoin = true;
+                GD.Print("LobbyUI: [TEST] Marathon Join mode detected. Auto-connecting...");
+                CallDeferred(nameof(RunAutoTest));
+            }
         }
 
         public override void _ExitTree()
@@ -239,6 +257,17 @@ namespace OkieRummyGodot.UI.Scripts
             _isInRoom = true;
             StatusLabel.Text = $"Joined Room: {code}";
             UpdateRoomUIForWaitingState();
+
+            // Auto-test: host adds bots and starts
+            if (_isTestHost)
+            {
+                GD.Print($"LobbyUI: [TEST] Joined room {code} as host. Adding bots and starting...");
+                CallDeferred(nameof(AutoAddBotsAndStart));
+            }
+            else if (_isTestJoin)
+            {
+                GD.Print($"LobbyUI: [TEST] Joined room {code} as joiner (index {playerIndex}). Waiting for host to start.");
+            }
         }
 
         private void UpdateRoomUIForWaitingState()
@@ -277,6 +306,47 @@ namespace OkieRummyGodot.UI.Scripts
         private void OnConnectionFailed()
         {
             StatusLabel.Text = "Failed to connect to server.";
+            if (_isTestHost || _isTestJoin)
+                GD.PrintErr("LobbyUI: [TEST] Connection FAILED!");
+        }
+
+        private async void RunAutoTest()
+        {
+            await Task.Delay(500); // Let the scene finish loading
+            if (_isTestHost)
+            {
+                _isHosting = true;
+            }
+            else if (_isTestJoin)
+            {
+                _pendingRoomCode = "9999";
+            }
+            _networkManager?.ConnectToServer("127.0.0.1", 8080);
+        }
+
+        private async void AutoAddBotsAndStart()
+        {
+            // Wait for other human clients to join (up to 15s)
+            GD.Print("LobbyUI: [TEST] Waiting for joiners...");
+            for (int wait = 0; wait < 30; wait++) // 30 x 500ms = 15s
+            {
+                await Task.Delay(500);
+                // Check server state via board sync count
+                if (_networkManager == null) return;
+            }
+
+            // Fill remaining seats with bots (up to 4 players)
+            int botsNeeded = 4 - 1; // We don't know exact count, so fill to 4
+            // Actually, let the server reject extras. Just try adding 3.
+            for (int i = 0; i < 3; i++)
+            {
+                GD.Print($"LobbyUI: [TEST] Adding bot {i + 1}...");
+                _networkManager?.RpcId(1, "RequestAddBot");
+                await Task.Delay(500);
+            }
+            await Task.Delay(1000);
+            GD.Print("LobbyUI: [TEST] Starting game...");
+            _networkManager?.RpcId(1, "RequestStartGame");
         }
     }
 }

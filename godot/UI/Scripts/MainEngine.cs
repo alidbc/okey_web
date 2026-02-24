@@ -54,6 +54,9 @@ public partial class MainEngine : Control
     private bool _isShowingFeedback = false;
     private Control _lastCheckTarget;
     private Color _originalStatusColor;
+    
+    private Control _leaveConfirmationPanel;
+    private Button _leaveGameButton;
 
     public override void _Ready()
     {
@@ -119,17 +122,9 @@ public partial class MainEngine : Control
         }
 
         // --- DEBUG ONLY: Victory Bypass Button ---
-        var debugBtn = new Button { Text = "DEBUG: FORCE VICTORY" };
-        debugBtn.Pressed += () => {
-            GD.Print("MainEngine: Debug Victory Triggered");
-            _matchManager.Status = GameStatus.Victory;
-            _matchManager.WinnerId = _localPlayer?.Id ?? "debug";
-            _matchManager.WinnerTiles = new List<Tile>(_localPlayer?.Rack ?? new Tile[26]);
-            GD.Print($"MainEngine: Debug Victory - WinnerTiles count: {_matchManager.WinnerTiles.Count}");
-            ShowGameEndUI();
-        };
-        debugBtn.SetPosition(new Vector2(10, 10));
-        AddChild(debugBtn);
+        // (Removing debugBtn to avoid clutter, will add Leave Game button instead)
+        CreateLeaveGameButton();
+        CreateConfirmationDialog();
         // ------------------------------------------
     
         if (_localNameplate != null)
@@ -187,22 +182,10 @@ public partial class MainEngine : Control
         // We don't start the game locally; we wait for sync
         _matchManager.OnGameStateChanged += HandleGameStateChanged;
 
-        // In multiplayer, we use p0, p1, p2, p3 to match server indices
-        // We only initialize up to the count provided by server
-        for (int i = 0; i < _matchManager.Players.Count; i++)
+        // Initialize players based on sync data
+        if (NetworkManager.LocalPlayerIndex != -1)
         {
-            if (i == NetworkManager.LocalPlayerIndex) _localPlayer = _matchManager.Players[i];
-        }
-
-        if (_localPlayer == null || _localPlayer.Id != $"p{NetworkManager.LocalPlayerIndex}")
-        {
-            string initialName = NetworkManager.Multiplayer.GetUniqueId().ToString();
-            _localPlayer = new Player($"p{NetworkManager.LocalPlayerIndex}", initialName, "");
-        }
-
-        if (!_matchManager.Players.Contains(_localPlayer))
-        {
-            _matchManager.AddPlayer(_localPlayer);
+            // We wait for the first board sync to fully populate the player list
         }
 
         LocalRackUI?.Initialize(_localPlayer);
@@ -1164,23 +1147,12 @@ public partial class MainEngine : Control
             var tween = CreateTween();
             tween.TweenProperty(animSprite, "global_position", targetNode.GlobalPosition + targetNode.Size / 2 - animSprite.Size / 2, 0.4f)
                  .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
-            
-            TileUI suppressTarget = null;
-            var dzNodes = new DiscardZoneUI[] { DZ1, DZ2, DZ3, DZ4 };
-            for (int i = 0; i < 4; i++)
-            {
-                if (dzNodes[i] == targetNode)
-                {
-                    suppressTarget = _dzTiles[i];
-                    break;
-                }
-            }
 
-            if (suppressTarget != null) suppressTarget.IsFullyHidden = true;
+            // Don't hide the existing DZ tile — let the old top card stay visible
+            // while the new card flies in on top of it. This prevents the empty-pile flash.
 
             tween.TweenCallback(Callable.From(() => {
                 GD.Print($"MainEngine: Opponent Discard Tween finished");
-                if (suppressTarget != null) suppressTarget.IsFullyHidden = false;
                 animSprite.QueueFree();
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
@@ -1265,7 +1237,7 @@ public partial class MainEngine : Control
                 InitializeMultiplayerUI();
                 ConnectDynamicUI(); // Re-connect signals for the new local player
             }
-            else if (_localPlayer == null)
+            else if (_localPlayer == null && NetworkManager.LocalPlayerIndex != -1 && NetworkManager.LocalPlayerIndex < _matchManager.Players.Count)
             {
                 _localPlayer = _matchManager.Players[NetworkManager.LocalPlayerIndex];
                 InitializeMultiplayerUI();
@@ -1289,26 +1261,28 @@ public partial class MainEngine : Control
             // Update Turn Timers
             UpdateTurnTimers(data.ActivePlayer, data.TurnStartTimestamp, data.TurnDuration);
 
-            // Update Bot Visuals
+            // Update Bot / Disconnected Visuals
             if (data.IsBot != null && data.IsBot.Count == _matchManager.Players.Count)
             {
                 for (int i = 0; i < data.IsBot.Count; i++)
                 {
                     bool isBot = data.IsBot[i];
+                    bool isDisconnected = data.IsDisconnected != null && i < data.IsDisconnected.Count && data.IsDisconnected[i];
+                    bool showRed = isBot || isDisconnected;
                     int relIdx = GetRelativeIndex($"p{i}");
                     switch (relIdx)
                     {
                         case 0:
-                            _localNameplate?.SetBotMode(isBot);
+                            _localNameplate?.SetBotMode(showRed);
                             break;
                         case 1:
-                            RightOpponent?.SetBotMode(isBot);
+                            RightOpponent?.SetBotMode(showRed);
                             break;
                         case 2:
-                            TopOpponent?.SetBotMode(isBot);
+                            TopOpponent?.SetBotMode(showRed);
                             break;
                         case 3:
-                            LeftOpponent?.SetBotMode(isBot);
+                            LeftOpponent?.SetBotMode(showRed);
                             break;
                     }
                 }
@@ -1344,6 +1318,9 @@ public partial class MainEngine : Control
                 GD.Print("MainEngine: Animation active, skipping instant visual refresh from Board Sync.");
                 return;
             }
+
+            var activeP = _matchManager.Players[_matchManager.CurrentPlayerIndex];
+            GD.Print($"MainEngine: Final State Check - LocalPlayerIndex: {NetworkManager.LocalPlayerIndex}, LocalPlayerID: {_localPlayer?.Id ?? "null"}, ActivePlayerIndex: {_matchManager.CurrentPlayerIndex}, ActivePlayerID: {activeP.Id}");
 
             HandleGameStateChanged(true);
         }
@@ -1389,5 +1366,102 @@ public partial class MainEngine : Control
         {
             GD.PrintErr($"MainEngine: Error in OnPrivateRackSynced: {ex.Message}\nJSON: {json}");
         }
+    }
+
+    private void CreateLeaveGameButton()
+    {
+        _leaveGameButton = new Button();
+        _leaveGameButton.Text = "Leave Game";
+        _leaveGameButton.CustomMinimumSize = new Vector2(120, 40);
+        
+        // Style it to match the theme (reddish/brownish for exit)
+        var style = new StyleBoxFlat();
+        style.BgColor = new Color(0.6f, 0.2f, 0.2f, 0.8f); // Dark red transparent
+        style.CornerRadiusBottomLeft = 8;
+        style.CornerRadiusBottomRight = 8;
+        style.CornerRadiusTopLeft = 8;
+        style.CornerRadiusTopRight = 8;
+        style.BorderWidthBottom = 2;
+        style.BorderWidthLeft = 2;
+        style.BorderWidthRight = 2;
+        style.BorderWidthTop = 2;
+        style.BorderColor = new Color(0.4f, 0.1f, 0.1f, 1f);
+        
+        _leaveGameButton.AddThemeStyleboxOverride("normal", style);
+        
+        var hoverStyle = (StyleBoxFlat)style.Duplicate();
+        hoverStyle.BgColor = new Color(0.8f, 0.3f, 0.3f, 0.9f);
+        _leaveGameButton.AddThemeStyleboxOverride("hover", hoverStyle);
+
+        _leaveGameButton.SetPosition(new Vector2(20, 20));
+        _leaveGameButton.Pressed += () => {
+            if (_leaveConfirmationPanel != null) _leaveConfirmationPanel.Visible = true;
+        };
+        
+        AddChild(_leaveGameButton);
+    }
+
+    private void CreateConfirmationDialog()
+    {
+        _leaveConfirmationPanel = new Panel();
+        _leaveConfirmationPanel.CustomMinimumSize = new Vector2(400, 200);
+        _leaveConfirmationPanel.Visible = false;
+        
+        var glassStyle = new StyleBoxFlat();
+        glassStyle.BgColor = new Color(0.04f, 0.10f, 0.08f, 0.95f);
+        glassStyle.CornerRadiusBottomLeft = 16;
+        glassStyle.CornerRadiusBottomRight = 16;
+        glassStyle.CornerRadiusTopLeft = 16;
+        glassStyle.CornerRadiusTopRight = 16;
+        glassStyle.BorderWidthBottom = 2;
+        glassStyle.BorderWidthLeft = 2;
+        glassStyle.BorderWidthRight = 2;
+        glassStyle.BorderWidthTop = 2;
+        glassStyle.BorderColor = new Color(1f, 1f, 1f, 0.1f);
+        glassStyle.ShadowColor = new Color(0, 0, 0, 0.5f);
+        glassStyle.ShadowSize = 20;
+
+        _leaveConfirmationPanel.AddThemeStyleboxOverride("panel", glassStyle);
+        
+        // Center it
+        _leaveConfirmationPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+        
+        var vbox = new VBoxContainer();
+        vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        vbox.Alignment = BoxContainer.AlignmentMode.Center;
+        vbox.AddThemeConstantOverride("separation", 30);
+        _leaveConfirmationPanel.AddChild(vbox);
+
+        var label = new Label();
+        label.Text = "Are you sure you want to leave the game?";
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.AddThemeFontSizeOverride("font_size", 18);
+        vbox.AddChild(label);
+
+        var hbox = new HBoxContainer();
+        hbox.Alignment = BoxContainer.AlignmentMode.Center;
+        hbox.AddThemeConstantOverride("separation", 40);
+        vbox.AddChild(hbox);
+
+        var leaveBtn = new Button();
+        leaveBtn.Text = "Leave";
+        leaveBtn.CustomMinimumSize = new Vector2(100, 40);
+        leaveBtn.Pressed += OnConfirmLeave;
+        hbox.AddChild(leaveBtn);
+
+        var cancelBtn = new Button();
+        cancelBtn.Text = "Cancel";
+        cancelBtn.CustomMinimumSize = new Vector2(100, 40);
+        cancelBtn.Pressed += () => _leaveConfirmationPanel.Visible = false;
+        hbox.AddChild(cancelBtn);
+
+        AddChild(_leaveConfirmationPanel);
+    }
+
+    private void OnConfirmLeave()
+    {
+        GD.Print("MainEngine: Leave confirmed. Resetting session...");
+        NetworkManager?.Disconnect();
+        GetTree().ChangeSceneToFile("res://UI/Scenes/Lobby.tscn");
     }
 }

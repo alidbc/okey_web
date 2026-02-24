@@ -63,7 +63,13 @@ public partial class OpponentUI : HBoxContainer
 
     public void Initialize(Player playerData, bool isRightOpponent = false)
     {
-        if (playerData == null) return;
+        if (playerData == null)
+        {
+            Visible = false;
+            return;
+        }
+
+        Visible = true;
         if (_nameLabel != null) _nameLabel.Text = playerData.Name;
         // Mocking level parsing, actual app had it typed
         if (_levelLabel != null) _levelLabel.Text = "Level 42"; 
@@ -106,6 +112,7 @@ public partial class OpponentUI : HBoxContainer
     public void SetBotMode(bool isBot)
     {
         var indicator = GetNodeOrNull<Panel>("Nameplate/HBoxContainer/AvatarContainer/OnlineIndicator");
+        GD.Print($"OpponentUI.SetBotMode({isBot}): indicator found={indicator != null}");
         if (indicator != null)
         {
             var style = (StyleBoxFlat)indicator.GetThemeStylebox("panel").Duplicate();

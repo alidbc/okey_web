@@ -38,7 +38,7 @@ public class MatchManager
 
     public MatchManager()
     {
-        Status = GameStatus.Menu;
+        Status = GameStatus.Playing; // Or some initial game state
         Players = new List<Player>();
         PlayerDiscardPiles = new Dictionary<string, List<Tile>>();
         DiscardPile = new List<Tile>();
@@ -46,7 +46,10 @@ public class MatchManager
 
     public void AddPlayer(Player player)
     {
-        Players.Add(player);
+        if (!Players.Contains(player))
+        {
+            Players.Add(player);
+        }
         PlayerDiscardPiles[player.Id] = new List<Tile>();
     }
 
@@ -285,7 +288,7 @@ public class MatchManager
     private void CheckBotReplacement()
     {
         var player = Players[CurrentPlayerIndex];
-        if (!player.IsBot && player.ConsecutiveMissedTurns >= 3)
+        if (!player.IsBot && player.ConsecutiveMissedTurns >= 1)
         {
             GD.Print($"MatchManager: Player {player.Id} missed {player.ConsecutiveMissedTurns} turns. Replacing with bot.");
             

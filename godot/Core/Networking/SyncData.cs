@@ -13,6 +13,7 @@ namespace OkieRummyGodot.Core.Networking
         public List<List<Tile>> Discards { get; set; }
         public List<string> PlayerNames { get; set; }
         public List<bool> IsBot { get; set; }
+        public List<bool> IsDisconnected { get; set; }
         public long TurnStartTimestamp { get; set; }
         public int TurnDuration { get; set; }
         public string WinnerId { get; set; }

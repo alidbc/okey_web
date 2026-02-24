@@ -27,35 +27,25 @@ namespace OkieRummyGodot.Core.Networking
         [Export] public string MainGameScenePath = "res://UI/Scenes/Main.tscn";
         
         public int LocalPlayerIndex { get; private set; } = -1;
-        private Dictionary<string, MatchManager> _rooms = new Dictionary<string, MatchManager>();
-        private Dictionary<int, string> _peerToRoom = new Dictionary<int, string>();
-        private Dictionary<int, int> _peerToPlayer = new Dictionary<int, int>(); // peerId -> playerIndex (0-3) within their room
-        private Dictionary<string, (string roomId, int playerIndex)> _tokenToSession = new Dictionary<string, (string, int)>();
-        private Dictionary<(string roomId, int playerIndex), int> _sessionToPeer = new Dictionary<(string, int), int>();
+        private ServerRoomManager _roomManager = new ServerRoomManager();
         private Dictionary<int, long> _lastRpcTime = new Dictionary<int, long>();
         private double _tickTimer = 0;
 
         public bool IsActive => Multiplayer.MultiplayerPeer != null && 
-                                Multiplayer.MultiplayerPeer is ENetMultiplayerPeer &&
-                                Multiplayer.MultiplayerPeer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+                                 Multiplayer.MultiplayerPeer is ENetMultiplayerPeer &&
+                                 Multiplayer.MultiplayerPeer.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
 
         public bool IsHost()
         {
             if (Multiplayer.IsServer())
             {
-                // On server, we can check the room data
                 int senderId = Multiplayer.GetRemoteSenderId();
-                if (!_peerToRoom.ContainsKey(senderId)) return false;
-                string code = _peerToRoom[senderId];
-                if (!_rooms.ContainsKey(code)) return false;
-                return _peerToPlayer[senderId] == 0;
+                return _roomManager.GetPlayerIndex(senderId) == 0;
             }
-            
-            // On client, we rely on our assigned index
             return LocalPlayerIndex == 0;
         }
 
-        public string GetRoomCode(int peerId) => _peerToRoom.ContainsKey(peerId) ? _peerToRoom[peerId] : "";
+        public string GetRoomCode(int peerId) => _roomManager.GetRoomByPeer(peerId)?.Code ?? "";
 
         public override void _Ready()
         {
@@ -64,7 +54,6 @@ namespace OkieRummyGodot.Core.Networking
 
         public override void _Process(double delta)
         {
-            // Diagnostic monitoring
             var currentStatus = Multiplayer.MultiplayerPeer?.GetConnectionStatus() ?? MultiplayerPeer.ConnectionStatus.Disconnected;
             if (currentStatus != _lastStatus)
             {
@@ -78,14 +67,9 @@ namespace OkieRummyGodot.Core.Networking
             if (_tickTimer >= 1.0)
             {
                 _tickTimer = 0;
-                // Use a copy of keys to avoid modification while iterating if CleanupRoom is called
-                var roomIds = _rooms.Keys.ToList();
-                foreach (var roomId in roomIds)
+                foreach (var room in _roomManager.ActiveRooms)
                 {
-                    if (_rooms.TryGetValue(roomId, out var match))
-                    {
-                        match.CheckTimeouts();
-                    }
+                    room.ActiveMatch?.CheckTimeouts();
                 }
             }
         }
@@ -110,17 +94,13 @@ namespace OkieRummyGodot.Core.Networking
         {
             GD.Print("NetworkManager: Force disconnecting and resetting state...");
             
-            // Close connection if active
             if (Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer))
             {
-                GD.Print($"NetworkManager: Closing existing peer of type {Multiplayer.MultiplayerPeer.GetType().Name}");
-                
-                // Disconnect signals to avoid overlapping callbacks or stale references
                 try {
                     Multiplayer.ConnectedToServer -= OnConnectedToServer;
                     Multiplayer.ConnectionFailed -= OnConnectionFailed;
                     Multiplayer.ServerDisconnected -= OnServerDisconnected;
-                } catch { /* Ignore if already disconnected */ }
+                } catch { }
 
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enet)
                 {
@@ -131,13 +111,8 @@ namespace OkieRummyGodot.Core.Networking
             Multiplayer.MultiplayerPeer = null;
             _peer = null;
 
-            // Reset local state
             LocalPlayerIndex = -1;
-            _rooms.Clear();
-            _peerToRoom.Clear();
-            _peerToPlayer.Clear();
-            _tokenToSession.Clear();
-            _sessionToPeer.Clear();
+            _roomManager = new ServerRoomManager();
             _lastRpcTime.Clear();
             _tickTimer = 0;
             _lastStatus = MultiplayerPeer.ConnectionStatus.Disconnected;
@@ -146,137 +121,42 @@ namespace OkieRummyGodot.Core.Networking
         private void OnPeerDisconnectedOnServer(long id)
         {
             int peerId = (int)id;
-            if (_peerToRoom.ContainsKey(peerId))
+            var (roomId, playerIndex, roomCleared) = _roomManager.HandleDisconnect(peerId);
+            
+            if (roomId != null)
             {
-                string roomId = _peerToRoom[peerId];
-                int playerIndex = _peerToPlayer[peerId];
-                
-                var match = _rooms[roomId];
-                match.Players[playerIndex].ConnectionState = PlayerConnectionState.TEMP_DISCONNECTED;
-                
-                _peerToRoom.Remove(peerId);
-                _peerToPlayer.Remove(peerId);
-                _lastRpcTime.Remove(peerId);
-                _sessionToPeer.Remove((roomId, playerIndex));
-                
-                GD.Print($"NetworkManager: Peer {peerId} (Player {playerIndex}) disconnected from room {roomId}");
-                
-                // Check if any active peers remain in this room
-                bool roomEmpty = true;
-                foreach (var kvp in _peerToRoom)
-                {
-                    if (kvp.Value == roomId)
-                    {
-                        roomEmpty = false;
-                        break;
-                    }
-                }
-
-                if (roomEmpty)
-                {
-                    CleanupRoom(roomId);
-                }
-                else
+                GD.Print($"NetworkManager: Peer {peerId} disconnected from room {roomId}");
+                if (!roomCleared)
                 {
                     BroadcastGameStateInRoom(roomId);
                 }
             }
         }
 
-        private void CleanupRoom(string roomId)
-        {
-            if (!_rooms.ContainsKey(roomId)) return;
+        public void CreateRoomOnServer() => RpcId(1, nameof(RequestCreateRoom));
+        public void JoinRoomOnServer(string code, string reconnectToken = "") => RpcId(1, nameof(RequestJoinRoom), code, reconnectToken);
+        public void RefreshRoomList() => RpcId(1, nameof(RequestPublicRooms));
 
-            GD.Print($"NetworkManager: Room {roomId} is empty. Cleaning up...");
-
-            // 1. Remove tokens and sessions associated with this room
-            var tokensToRemove = new List<string>();
-            foreach (var kvp in _tokenToSession)
-            {
-                if (kvp.Value.roomId == roomId) tokensToRemove.Add(kvp.Key);
-            }
-            foreach (var t in tokensToRemove) _tokenToSession.Remove(t);
-
-            var sessionsToRemove = new List<(string, int)>();
-            foreach (var kvp in _sessionToPeer)
-            {
-                if (kvp.Key.roomId == roomId) sessionsToRemove.Add(kvp.Key);
-            }
-            foreach (var s in sessionsToRemove) _sessionToPeer.Remove(s);
-
-            // 2. Remove the room itself
-            _rooms.Remove(roomId);
-            
-            GD.Print($"NetworkManager: Room {roomId} and all associated data removed.");
-        }
-
-        public void CreateRoomOnServer()
-        {
-            RpcId(1, nameof(RequestCreateRoom));
-        }
-
-        public void JoinRoomOnServer(string code, string reconnectToken = "")
-        {
-            RpcId(1, nameof(RequestJoinRoom), code, reconnectToken);
-        }
-
-        public void RefreshRoomList()
-        {
-            RpcId(1, nameof(RequestPublicRooms));
-        }
-
-        // RPC Handlers for Clients to call on Server
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestCreateRoom()
         {
             if (!Multiplayer.IsServer()) return;
             int peerId = Multiplayer.GetRemoteSenderId();
-
             if (IsThrottled(peerId)) return;
             
-            // Generate a unique room code
             string code = GD.RandRange(1000, 9999).ToString();
-            
-            // Auto-Test Mode Override
             var args = OS.GetCmdlineArgs().Concat(OS.GetCmdlineUserArgs()).ToArray();
-            if (args.Contains("--test-marathon-host"))
-            {
-                code = "9999";
-            }
-            
-            // For automated testing
-            bool isTest = false;
-            foreach(var arg in args) if(arg == "--test-mode" || arg == "--test-marathon-host" || arg == "--server") isTest = true;
+            bool isTest = args.Contains("--test-mode") || args.Contains("--test-marathon-host") || args.Contains("--server");
             if (isTest) code = "9999";
 
-            while (_rooms.ContainsKey(code) && code != "9999")
+            while (_roomManager.GetRoom(code) != null && code != "9999")
             {
                 code = GD.RandRange(1000, 9999).ToString();
             }
 
-            var match = new MatchManager();
-            SetupRoomEvents(code, match);
-            _rooms[code] = match;
-            
+            _roomManager.CreateRoom(peerId, code);
             GD.Print($"NetworkManager: Created room {code} for peer {peerId}");
-            
             JoinRoomLogic(peerId, code);
-        }
-
-        private void SetupRoomEvents(string code, MatchManager match)
-        {
-            match.OnAutoMoveExecuted += () => {
-                GD.Print($"NetworkManager: Auto-move executed in room {code}. Broadcasting state.");
-                BroadcastGameStateInRoom(code);
-            };
-
-            match.OnTileDrawn += (pid, tile, fromDiscard, targetIndex, isDrag) => {
-                Rpc(nameof(NotifyTileDrawn), pid, fromDiscard, targetIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0), isDrag);
-            };
-
-            match.OnTileDiscarded += (pid, tile, rackIndex) => {
-                Rpc(nameof(NotifyTileDiscarded), pid, rackIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0));
-            };
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
@@ -284,25 +164,19 @@ namespace OkieRummyGodot.Core.Networking
         {
             if (!Multiplayer.IsServer()) return;
             int peerId = Multiplayer.GetRemoteSenderId();
-
             if (IsThrottled(peerId)) return;
-
-            if (!_rooms.ContainsKey(code))
-            {
-                RpcId(peerId, nameof(NotifyRoomError), "Room not found.");
-                return;
-            }
 
             if (!string.IsNullOrEmpty(reconnectToken))
             {
-                if (_tokenToSession.TryGetValue(reconnectToken, out var session) && session.roomId == code)
+                if (_roomManager.Reconnect(peerId, reconnectToken, out var roomId, out var playerIndex, out var error))
                 {
-                    HandleReconnection(peerId, code, session.playerIndex);
+                    RpcId(peerId, nameof(ConfirmRoomJoined), roomId, playerIndex);
+                    BroadcastGameStateInRoom(roomId);
                     return;
                 }
                 else
                 {
-                    RpcId(peerId, nameof(NotifyRoomError), "Invalid reconnection token.");
+                    RpcId(peerId, nameof(NotifyRoomError), error);
                     return;
                 }
             }
@@ -310,69 +184,21 @@ namespace OkieRummyGodot.Core.Networking
             JoinRoomLogic(peerId, code);
         }
 
-        private void HandleReconnection(int peerId, string roomId, int playerIndex)
-        {
-            // Multi-device policy: Invalidate old or reject new
-            if (_sessionToPeer.TryGetValue((roomId, playerIndex), out int oldPeerId))
-            {
-                GD.Print($"NetworkManager: Player {playerIndex} reconnecting. Invalidating old peer {oldPeerId}");
-                _peer.DisconnectPeer(oldPeerId);
-                _peerToRoom.Remove(oldPeerId);
-                _peerToPlayer.Remove(oldPeerId);
-            }
-
-            var match = _rooms[roomId];
-            var player = match.Players[playerIndex];
-            player.ConnectionState = PlayerConnectionState.RECONNECTED;
-            
-            _peerToRoom[peerId] = roomId;
-            _peerToPlayer[peerId] = playerIndex;
-            _sessionToPeer[(roomId, playerIndex)] = peerId;
-
-            RpcId(peerId, nameof(ConfirmRoomJoined), roomId, playerIndex);
-            GD.Print($"NetworkManager: Peer {peerId} reconnected to room {roomId} as Player {playerIndex}");
-            BroadcastGameStateInRoom(roomId);
-        }
-
         private void JoinRoomLogic(int peerId, string code)
         {
-            var match = _rooms[code];
-            
-            // For now, simple auto-assign to first available player slot
-            int playerIndex = match.Players.Count;
-            if (playerIndex >= 4)
+            if (_roomManager.JoinRoom(peerId, code, out int playerIndex, out string token, out string error))
             {
-                RpcId(peerId, nameof(NotifyRoomError), "Room is full.");
-                return;
+                RpcId(peerId, nameof(ConfirmRoomJoined), code, playerIndex);
+                RpcId(peerId, nameof(ReceiveReconnectToken), token);
+                GD.Print($"NetworkManager: Peer {peerId} joined room {code}. Index: {playerIndex}");
+                BroadcastGameStateInRoom(code);
             }
-
-            string playerId = $"p{playerIndex}";
-            string token = Guid.NewGuid().ToString();
-            var player = new Player(playerId, peerId.ToString(), ""); // Use peer ID as name for now
-            player.ReconnectToken = token;
-            player.SeatIndex = playerIndex;
-            match.AddPlayer(player);
-            
-            _peerToRoom[peerId] = code;
-            _peerToPlayer[peerId] = playerIndex;
-            _tokenToSession[token] = (code, playerIndex);
-            _sessionToPeer[(code, playerIndex)] = peerId;
-
-            RpcId(peerId, nameof(ConfirmRoomJoined), code, playerIndex);
-            RpcId(peerId, nameof(ReceiveReconnectToken), token);
-            
-            GD.Print($"NetworkManager: Peer {peerId} joined room {code}. Current players: {match.Players.Count}/4");
+            else
+            {
+                RpcId(peerId, nameof(NotifyRoomError), error);
+            }
         }
 
-        [Rpc(MultiplayerApi.RpcMode.Authority)]
-        public void ReceiveReconnectToken(string token)
-        {
-            if (Multiplayer.IsServer()) return;
-            // Client should store this token (e.g. in local storage or a singleton)
-            GD.Print($"NetworkManager: Received reconnect token: {token}");
-        }
-
-        // RPC Stubs for Server to call on Clients
         [Rpc(MultiplayerApi.RpcMode.Authority)]
         public void ConfirmRoomJoined(string code, int playerIndex)
         {
@@ -384,12 +210,20 @@ namespace OkieRummyGodot.Core.Networking
         }
 
         [Rpc(MultiplayerApi.RpcMode.Authority)]
+        public void ReceiveReconnectToken(string token)
+        {
+            if (Multiplayer.IsServer()) return;
+            GD.Print($"NetworkManager: Received reconnect token: {token}");
+        }
+
+        [Rpc(MultiplayerApi.RpcMode.Authority)]
         public void NotifyWinCheckResult(bool success, string message)
         {
             if (Multiplayer.IsServer()) return;
             EmitSignal(SignalName.WinCheckResultReceived, success, message);
         }
 
+        [Rpc(MultiplayerApi.RpcMode.Authority)]
         public void NotifyRoomError(string message)
         {
             if (Multiplayer.IsServer()) return;
@@ -398,32 +232,19 @@ namespace OkieRummyGodot.Core.Networking
 
         public void ConnectToServer(string ip, int port)
         {
-            GD.Print($"NetworkManager: ConnectToServer requested for {ip}:{port}");
-            
-            // 1. Hard reset any existing connections properly
             Disconnect();
-            
-            GD.Print($"NetworkManager: Starting fresh connection to {ip}:{port}...");
-            
-            // 2. Re-instantiate peer
             var nextPeer = new ENetMultiplayerPeer();
-            var error = nextPeer.CreateClient(ip, port);
-            
-            if (error != Error.Ok)
+            if (nextPeer.CreateClient(ip, port) != Error.Ok)
             {
-                GD.PrintErr($"NetworkManager: Error creating ENet client: {error}");
                 EmitSignal(SignalName.ConnectionFailed);
                 return;
             }
-            
-            // 3. Assign peer deferredly to ensure the previous peer is fully cleared from Godot's internals
             _peer = nextPeer;
             CallDeferred(nameof(SetDeferredPeer), _peer);
         }
 
         private void SetDeferredPeer(MultiplayerPeer newPeer)
         {
-            // Re-bind signals to the persistent Multiplayer object for this node
             try {
                 Multiplayer.ConnectedToServer -= OnConnectedToServer;
                 Multiplayer.ConnectionFailed -= OnConnectionFailed;
@@ -435,28 +256,12 @@ namespace OkieRummyGodot.Core.Networking
             Multiplayer.ServerDisconnected += OnServerDisconnected;
 
             Multiplayer.MultiplayerPeer = newPeer;
-            GD.Print($"NetworkManager: Peer assigned DEFERRED. Status: {newPeer.GetConnectionStatus()}");
         }
 
-        private void OnConnectedToServer()
-        {
-            GD.Print("NetworkManager: Connected to server!");
-            EmitSignal(SignalName.ConnectionSuccessful);
-        }
+        private void OnConnectedToServer() => EmitSignal(SignalName.ConnectionSuccessful);
+        private void OnConnectionFailed() => EmitSignal(SignalName.ConnectionFailed);
+        private void OnServerDisconnected() => EmitSignal(SignalName.ServerDisconnected);
 
-        private void OnConnectionFailed()
-        {
-            GD.PrintErr("NetworkManager: Connection failed!");
-            EmitSignal(SignalName.ConnectionFailed);
-        }
-
-        private void OnServerDisconnected()
-        {
-            GD.Print("NetworkManager: Server disconnected!");
-            EmitSignal(SignalName.ServerDisconnected);
-        }
-
-        // RPC Stubs for Server to call on Clients
         [Rpc(MultiplayerApi.RpcMode.Authority)]
         public void SyncBoardState(string jsonState)
         {
@@ -478,54 +283,47 @@ namespace OkieRummyGodot.Core.Networking
             EmitSignal(SignalName.RoomListReceived, jsonList);
         }
 
-        // RPC Handlers for Clients to call on Server
+        [Rpc(MultiplayerApi.RpcMode.Authority)]
+        public void SyncLocalIndex(int newIndex)
+        {
+            if (Multiplayer.IsServer()) return;
+            LocalPlayerIndex = newIndex;
+        }
+
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestPublicRooms()
         {
             if (!Multiplayer.IsServer()) return;
             int senderId = Multiplayer.GetRemoteSenderId();
-
             if (IsThrottled(senderId)) return;
 
             var roomList = new RoomListSyncData { Rooms = new List<RoomInfo>() };
-            foreach (var kvp in _rooms)
+            foreach (var room in _roomManager.ActiveRooms)
             {
-                roomList.Rooms.Add(new RoomInfo
-                {
-                    Code = kvp.Key,
-                    PlayerCount = kvp.Value.Players.Count,
-                    Status = kvp.Value.Status == GameStatus.Menu ? "Lobby" : "In Progress"
+                roomList.Rooms.Add(new RoomInfo {
+                    Code = room.Code,
+                    PlayerCount = room.Players.Count,
+                    Status = !room.IsGaming ? "Lobby" : "In Progress"
                 });
             }
-
-            string json = System.Text.Json.JsonSerializer.Serialize(roomList);
-            RpcId(senderId, nameof(SyncRoomList), json);
+            RpcId(senderId, nameof(SyncRoomList), System.Text.Json.JsonSerializer.Serialize(roomList));
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestDrawFromDeck(int targetIndex = -1)
         {
             if (!Multiplayer.IsServer()) return;
-            
             int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room?.ActiveMatch == null) return;
 
-            string roomId = _peerToRoom[senderId];
-            var match = _rooms[roomId];
-            int playerIndex = _peerToPlayer[senderId];
-            string pid = GetPlayerIdFromIndex(playerIndex);
-
-            if (targetIndex < -1 || targetIndex >= 26) return;
-
-            if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
+            int playerIndex = _roomManager.GetPlayerIndex(senderId);
+            if (room.ActiveMatch.CurrentPlayerIndex == playerIndex && room.ActiveMatch.CurrentPhase == TurnPhase.Draw)
             {
-                match.ResetConsecutiveMissedTurns(pid);
-                bool wasDrag = targetIndex != -1;
-                int landedIndex = match.DrawFromDeck(pid, targetIndex, wasDrag);
-                if (landedIndex != -1)
-                {
-                    BroadcastGameStateInRoom(roomId);
-                }
+                string pid = $"p{playerIndex}";
+                room.ActiveMatch.ResetConsecutiveMissedTurns(pid);
+                if (room.ActiveMatch.DrawFromDeck(pid, targetIndex, targetIndex != -1) != -1)
+                    BroadcastGameStateInRoom(room.Code);
             }
         }
 
@@ -533,26 +331,17 @@ namespace OkieRummyGodot.Core.Networking
         public void RequestDrawFromDiscard(int targetIndex = -1)
         {
             if (!Multiplayer.IsServer()) return;
-
             int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
-            
-            string roomId = _peerToRoom[senderId];
-            var match = _rooms[roomId];
-            int playerIndex = _peerToPlayer[senderId];
-            string pid = GetPlayerIdFromIndex(playerIndex);
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room?.ActiveMatch == null) return;
 
-            if (targetIndex < -1 || targetIndex >= 26) return;
-
-            if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
+            int playerIndex = _roomManager.GetPlayerIndex(senderId);
+            if (room.ActiveMatch.CurrentPlayerIndex == playerIndex && room.ActiveMatch.CurrentPhase == TurnPhase.Draw)
             {
-                match.ResetConsecutiveMissedTurns(pid);
-                bool wasDrag = targetIndex != -1;
-                int landedIndex = match.DrawFromDiscard(pid, targetIndex, wasDrag);
-                if (landedIndex != -1)
-                {
-                    BroadcastGameStateInRoom(roomId);
-                }
+                string pid = $"p{playerIndex}";
+                room.ActiveMatch.ResetConsecutiveMissedTurns(pid);
+                if (room.ActiveMatch.DrawFromDiscard(pid, targetIndex, targetIndex != -1) != -1)
+                    BroadcastGameStateInRoom(room.Code);
             }
         }
 
@@ -560,31 +349,17 @@ namespace OkieRummyGodot.Core.Networking
         public void RequestDiscard(int rackIndex)
         {
             if (!Multiplayer.IsServer()) return;
-
             int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room?.ActiveMatch == null) return;
 
-            string roomId = _peerToRoom[senderId];
-            var match = _rooms[roomId];
-            int playerIndex = _peerToPlayer[senderId];
-            string pid = GetPlayerIdFromIndex(playerIndex);
-
-            GD.Print($"NetworkManager: Discard request from {senderId} (index {playerIndex}) for rack index {rackIndex}. Match Status: {match.Status}, Active: {match.CurrentPlayerIndex}, Phase: {match.CurrentPhase}");
-
-            if (rackIndex < 0 || rackIndex >= 26) return;
-
-            if (match.Status == GameStatus.Playing && match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Discard)
+            int playerIndex = _roomManager.GetPlayerIndex(senderId);
+            if (room.ActiveMatch.CurrentPlayerIndex == playerIndex && room.ActiveMatch.CurrentPhase == TurnPhase.Discard)
             {
-                match.ResetConsecutiveMissedTurns(pid);
-                if (match.DiscardTile(pid, rackIndex))
-                {
-                    GD.Print($"NetworkManager: Discard successful for {pid}. Broadcasting state.");
-                    BroadcastGameStateInRoom(roomId);
-                }
-                else
-                {
-                    GD.PrintErr($"NetworkManager: match.DiscardTile failed for {pid} at index {rackIndex}");
-                }
+                string pid = $"p{playerIndex}";
+                room.ActiveMatch.ResetConsecutiveMissedTurns(pid);
+                if (room.ActiveMatch.DiscardTile(pid, rackIndex))
+                    BroadcastGameStateInRoom(room.Code);
             }
         }
 
@@ -606,44 +381,33 @@ namespace OkieRummyGodot.Core.Networking
         public void RequestMoveTile(int fromIndex, int toIndex)
         {
             if (!Multiplayer.IsServer()) return;
-            if (fromIndex < 0 || fromIndex >= 26 || toIndex < 0 || toIndex >= 26) return;
-            
             int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
-
-            string roomId = _peerToRoom[senderId];
-            var match = _rooms[roomId];
-            int playerIndex = _peerToPlayer[senderId];
-            var player = match.Players[playerIndex];
-
-            player.MoveTile(fromIndex, toIndex);
-            match.ResetConsecutiveMissedTurns(player.Id);
-            // No need to broadcast, client already did the move locally.
-            // This just keeps server's record up to date for future syncs.
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room?.ActiveMatch != null)
+            {
+                int playerIndex = _roomManager.GetPlayerIndex(senderId);
+                room.ActiveMatch.Players[playerIndex].MoveTile(fromIndex, toIndex);
+                room.ActiveMatch.ResetConsecutiveMissedTurns(room.ActiveMatch.Players[playerIndex].Id);
+            }
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestAddBot()
         {
             if (!Multiplayer.IsServer()) return;
-            
             int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room == null || room.IsGaming || _roomManager.GetPlayerIndex(senderId) != 0) return;
 
-            string roomId = _peerToRoom[senderId];
-            var match = _rooms[roomId];
-
-            // Only allow host (player index 0) to add bots
-            if (_peerToPlayer[senderId] != 0) return;
-
-            if (match.Players.Count < 4)
+            if (room.Players.Count < 4)
             {
-                int botIndex = match.Players.Count;
-                var bot = new Core.Application.BotPlayer($"Bot_{botIndex}", $"Bot {botIndex}", "res://Assets/avatar.png", match);
-                match.AddPlayer(bot);
-                
-                GD.Print($"NetworkManager: Added Bot to Room {roomId}. Total players: {match.Players.Count}");
-                BroadcastGameStateInRoom(roomId);
+                int botIndex = room.Players.Count;
+                var bot = new BotPlayer($"Bot_{botIndex}", $"Bot {botIndex}", "res://Assets/avatar.png", room.ActiveMatch) 
+                { 
+                    SeatIndex = botIndex 
+                };
+                room.AddPlayer(bot);
+                BroadcastGameStateInRoom(room.Code);
             }
         }
 
@@ -652,128 +416,101 @@ namespace OkieRummyGodot.Core.Networking
         {
             if (!Multiplayer.IsServer()) return;
             int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room == null || room.IsGaming || _roomManager.GetPlayerIndex(senderId) != 0 || room.Players.Count < 2) return;
 
-            string code = _peerToRoom[senderId];
-            var match = _rooms[code];
+            _roomManager.StartMatch(room.Code);
+            HookMatchEvents(room.Code, room.ActiveMatch);
+            BroadcastGameStateInRoom(room.Code);
+        }
 
-            int playerIndex = _peerToPlayer[senderId];
-            if (playerIndex != 0) 
-            {
-                GD.Print($"NetworkManager: Non-host {senderId} (index {playerIndex}) tried to start room {code}");
-                return;
-            }
-
-            if (match.Status != GameStatus.Menu) return;
-
-            if (match.Players.Count < 2)
-            {
-                GD.Print($"NetworkManager: Host {senderId} tried to start room {code} with only {match.Players.Count} players.");
-                return;
-            }
-
-            GD.Print($"NetworkManager: Host {senderId} starting room {code} with {match.Players.Count} players.");
-            match.StartGame();
-            BroadcastGameStateInRoom(code);
+        private void HookMatchEvents(string code, MatchManager match)
+        {
+            match.OnAutoMoveExecuted += () => BroadcastGameStateInRoom(code);
+            match.OnTileDrawn += (pid, tile, fromDiscard, targetIndex, isDrag) => 
+                Rpc(nameof(NotifyTileDrawn), pid, fromDiscard, targetIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0), isDrag);
+            match.OnTileDiscarded += (pid, tile, rackIndex) => 
+                Rpc(nameof(NotifyTileDiscarded), pid, rackIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0));
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestCheckWinCondition(int rackIndex)
         {
             if (!Multiplayer.IsServer()) return;
-            if (rackIndex < 0 || rackIndex >= 26) return;
-
             int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room?.ActiveMatch == null) return;
 
-            string roomId = _peerToRoom[senderId];
-            var match = _rooms[roomId];
-            int playerIndex = _peerToPlayer[senderId];
-            string pid = GetPlayerIdFromIndex(playerIndex);
-
-            if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Discard)
+            int playerIndex = _roomManager.GetPlayerIndex(senderId);
+            if (room.ActiveMatch.CurrentPlayerIndex == playerIndex && room.ActiveMatch.CurrentPhase == TurnPhase.Discard)
             {
-                match.ResetConsecutiveMissedTurns(pid);
-                var (success, message) = match.FinishGame(pid, rackIndex);
-                if (success)
-                {
-                    BroadcastGameStateInRoom(roomId);
-                }
-                
-                // Always notify the requester of the result
+                string pid = $"p{playerIndex}";
+                room.ActiveMatch.ResetConsecutiveMissedTurns(pid);
+                var (success, message) = room.ActiveMatch.FinishGame(pid, rackIndex);
+                if (success) BroadcastGameStateInRoom(room.Code);
                 RpcId(senderId, nameof(NotifyWinCheckResult), success, message);
-            }
-            else
-            {
-                RpcId(senderId, nameof(NotifyWinCheckResult), false, "Not your turn or wrong phase.");
             }
         }
 
         private void BroadcastGameStateInRoom(string roomId)
         {
-            var match = _rooms[roomId];
+            var room = _roomManager.GetRoom(roomId);
+            if (room == null) return;
+            var match = room.ActiveMatch;
+            // Use match.Players when active (bot replacement modifies match.Players, not room.Players)
+            var activePlayers = match?.Players ?? room.Players;
 
-            // 1. Send public board state to everyone in the room
-            var boardState = new BoardSyncData
-            {
-                DeckCount = match.GameDeck?.RemainingCount ?? 106,
-                Indicator = match.IndicatorTile,
-                ActivePlayer = match.CurrentPlayerIndex,
-                Phase = match.CurrentPhase,
-                Status = match.Status == GameStatus.Menu ? "Lobby" : (match.Status == GameStatus.Victory ? "Victory" : "Active"),
-                Discards = new List<List<Tile>>(),
-                PlayerNames = new List<string>(),
-                TurnStartTimestamp = match.TurnStartTimestamp,
-                TurnDuration = match.TurnDuration,
-                IsBot = match.Players.Select(p => p.IsBot).ToList(),
-                WinnerId = match.WinnerId,
-                WinnerTiles = match.WinnerTiles
+            var boardState = new BoardSyncData {
+                DeckCount = match?.GameDeck?.RemainingCount ?? 106,
+                Indicator = match?.IndicatorTile,
+                ActivePlayer = match?.CurrentPlayerIndex ?? 0,
+                Phase = match?.CurrentPhase ?? TurnPhase.Draw,
+                Status = !room.IsGaming ? "Lobby" : (match.Status == GameStatus.Victory ? "Victory" : "Active"),
+                PlayerNames = activePlayers.Select(p => p.Name).ToList(),
+                TurnStartTimestamp = match?.TurnStartTimestamp ?? 0,
+                TurnDuration = match?.TurnDuration ?? 30,
+                IsBot = activePlayers.Select(p => p.IsBot).ToList(),
+                IsDisconnected = activePlayers.Select(p => 
+                    p.ConnectionState == PlayerConnectionState.TEMP_DISCONNECTED ||
+                    p.ConnectionState == PlayerConnectionState.REPLACED_BY_BOT ||
+                    p.ConnectionState == PlayerConnectionState.TIMED_OUT ||
+                    p.ConnectionState == PlayerConnectionState.LEFT_INTENTIONALLY
+                ).ToList(),
+                WinnerId = match?.WinnerId,
+                WinnerTiles = match?.WinnerTiles
             };
 
-            foreach (var mapping in _peerToRoom)
+            var peers = _roomManager.GetPeersInRoom(roomId);
+            foreach (var peerId in peers)
             {
-                if (mapping.Value == roomId)
+                int pIdx = _roomManager.GetPlayerIndex(peerId);
+                if (pIdx == -1) continue;
+
+                // Critical: Ensure client's local index is in sync (important for seat shifts)
+                RpcId(peerId, nameof(SyncLocalIndex), pIdx);
+
+                var perPeerDiscards = new List<List<Tile>>();
+                for (int i = 0; i < room.Players.Count; i++)
                 {
-                    int recipientPeerId = mapping.Key;
-                    int recipientPlayerIndex = _peerToPlayer[recipientPeerId];
-
-                    // Security: Obfuscate opponent discard piles (only top card visible)
-                    var perPeerDiscards = new List<List<Tile>>();
-                    for (int i = 0; i < match.Players.Count; i++)
-                    {
-                        var pOwner = match.Players[i];
-                        var originalPile = match.PlayerDiscardPiles.ContainsKey(pOwner.Id) ? match.PlayerDiscardPiles[pOwner.Id] : new List<Tile>();
-                        
-                        if (i == recipientPlayerIndex)
-                        {
-                            perPeerDiscards.Add(new List<Tile>(originalPile)); // Owner sees all
-                        }
-                        else
-                        {
-                            var topOnly = new List<Tile>();
-                            if (originalPile.Count > 0) topOnly.Add(originalPile[^1]); // Others see only top
-                            perPeerDiscards.Add(topOnly);
-                        }
+                    var pOwner = room.Players[i];
+                    var pile = (match != null && match.PlayerDiscardPiles.TryGetValue(pOwner.Id, out var p)) ? p : new List<Tile>();
+                    if (i == pIdx) perPeerDiscards.Add(new List<Tile>(pile));
+                    else {
+                        var top = new List<Tile>();
+                        if (pile.Count > 0) top.Add(pile[^1]);
+                        perPeerDiscards.Add(top);
                     }
-                    boardState.Discards = perPeerDiscards;
+                }
+                boardState.Discards = perPeerDiscards;
+                RpcId(peerId, nameof(SyncBoardState), System.Text.Json.JsonSerializer.Serialize(boardState));
 
-                    string jsonBoard = System.Text.Json.JsonSerializer.Serialize(boardState);
-                    RpcId(recipientPeerId, nameof(SyncBoardState), jsonBoard);
-                    
-                    // 2. Send private rack
-                    int playerIndex = _peerToPlayer[recipientPeerId];
-                    var player = match.Players[playerIndex];
-                    
-                    var rackSync = new RackSyncData { Slots = new List<Tile>(player.Rack) };
-                    
-                    // Security: Only reveal the next tile if it's the recipient's turn and they are in the draw phase
-                    if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
-                    {
+                if (match != null)
+                {
+                    var p = room.Players[pIdx];
+                    var rackSync = new RackSyncData { Slots = new List<Tile>(p.Rack) };
+                    if (match.CurrentPlayerIndex == pIdx && match.CurrentPhase == TurnPhase.Draw)
                         rackSync.NextDeckTile = match.PeekDeck();
-                    }
-
-                    string jsonRack = System.Text.Json.JsonSerializer.Serialize(rackSync);
-                    RpcId(recipientPeerId, nameof(SyncPrivateRack), jsonRack);
+                    RpcId(peerId, nameof(SyncPrivateRack), System.Text.Json.JsonSerializer.Serialize(rackSync));
                 }
             }
         }
@@ -782,30 +519,14 @@ namespace OkieRummyGodot.Core.Networking
         public void RequestSync()
         {
             if (!Multiplayer.IsServer()) return;
-            int senderId = Multiplayer.GetRemoteSenderId();
-            if (!_peerToRoom.ContainsKey(senderId)) return;
-
-            string roomId = _peerToRoom[senderId];
-            GD.Print($"NetworkManager: Resync requested by peer {senderId} in room {roomId}");
-            BroadcastGameStateInRoom(roomId);
-        }
-
-        private string GetPlayerIdFromIndex(int index)
-        {
-            return $"p{index}";
+            var room = _roomManager.GetRoomByPeer(Multiplayer.GetRemoteSenderId());
+            if (room != null) BroadcastGameStateInRoom(room.Code);
         }
 
         private bool IsThrottled(int peerId, int cooldownMs = 1000)
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            if (_lastRpcTime.TryGetValue(peerId, out long lastTime))
-            {
-                if (now - lastTime < cooldownMs)
-                {
-                    GD.Print($"NetworkManager: Throttling peer {peerId} (Room RPC)");
-                    return true;
-                }
-            }
+            if (_lastRpcTime.TryGetValue(peerId, out long lastTime) && now - lastTime < cooldownMs) return true;
             _lastRpcTime[peerId] = now;
             return false;
         }

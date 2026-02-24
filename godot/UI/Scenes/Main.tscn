@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" path="res://UI/Scenes/OpponentUI.tscn" id="6_opponent"]
 [ext_resource type="PackedScene" path="res://UI/Scenes/GameEndUI.tscn" id="7_game_end"]
 [ext_resource type="Script" path="res://UI/Scripts/NameplateUI.cs" id="8_nameplate"]
+[ext_resource type="Shader" path="res://Assets/TimerShader.gdshader" id="9_shader"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nameplate"]
 content_margin_left = 21.0
@@ -58,6 +59,13 @@ corner_radius_top_left = 6
 corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_timer"]
+shader = ExtResource("9_shader")
+shader_parameter/value = 0.0
+shader_parameter/thickness = 0.08
+shader_parameter/color = Color(1, 0.75, 0.18, 1)
+shader_parameter/bg_color = Color(1, 1, 1, 0.2)
 
 [node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4", "StartGameButton")]
 layout_mode = 3
@@ -224,6 +232,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_border")
+
+[node name="TurnTimer" type="ColorRect" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
+material = SubResource("ShaderMaterial_timer")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
 [node name="OnlineIndicator" type="Panel" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
 custom_minimum_size = Vector2(16, 16)

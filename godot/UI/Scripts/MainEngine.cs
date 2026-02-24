@@ -425,7 +425,14 @@ public partial class MainEngine : Control
             // Manage Win Condition Check (Drag to Indicator)
             if (_boardCenter != null)
                 _boardCenter.IsInteractable = isLocalTurn && _matchManager.CurrentPhase == TurnPhase.Discard;
+            
+            _localNameplate?.SetActive(isLocalTurn);
         }
+
+        // Update Opponent Visuals
+        RightOpponent?.SetActive(activePlayer.Id == _matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 1)?.Id);
+        TopOpponent?.SetActive(activePlayer.Id == _matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 2)?.Id);
+        LeftOpponent?.SetActive(activePlayer.Id == _matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 3)?.Id);
 
         // Multiplayer: Manage Start Button Visibility
         if (StartGameButton != null)
@@ -633,7 +640,7 @@ public partial class MainEngine : Control
             return;
         }
 
-        Control sourceNode = fromDiscard ? DZ4 : _boardCenter?.DeckCountBadge;
+        Control sourceNode = fromDiscard ? GetDiscardSourceForPlayer(_localPlayer.Id) : _boardCenter?.DeckCountBadge;
         Control targetNode = LocalRackUI?.GetSlotNode(targetIndex);
         TileUI targetTileUI = LocalRackUI?.GetTileUI(targetIndex);
         Tile drawnTile = _localPlayer.Rack[targetIndex];
@@ -730,12 +737,14 @@ public partial class MainEngine : Control
     private void OnPlayAgain()
     {
         GD.Print("MainEngine: Play Again pressed. Navigating to Lobby...");
+        NetworkManager?.Disconnect();
         GetTree().ChangeSceneToFile("res://UI/Scenes/Lobby.tscn");
     }
 
     private void OnMainMenu()
     {
         GD.Print("MainEngine: Main Menu pressed. Navigating to Lobby...");
+        NetworkManager?.Disconnect();
         GetTree().ChangeSceneToFile("res://UI/Scenes/Lobby.tscn");
     }
 
@@ -825,7 +834,7 @@ public partial class MainEngine : Control
         HandleGameStateChanged();
     }
 
-    private void OnMatchTileDrawn(string playerId, Tile tile, bool fromDiscard)
+    private void OnMatchTileDrawn(string playerId, Tile tile, bool fromDiscard, int targetSlotIndex, bool wasDrag)
     {
         if (playerId == _localPlayer.Id) return;
 
@@ -839,7 +848,7 @@ public partial class MainEngine : Control
         }
     }
     
-    private void OnMatchTileDiscarded(string playerId, Tile tile)
+    private void OnMatchTileDiscarded(string playerId, Tile tile, int rackIndex)
     {
         if (playerId == _localPlayer.Id) return;
 
@@ -1121,7 +1130,6 @@ public partial class MainEngine : Control
     private void AnimateOpponentDiscardEffect(string playerId, string tileId, int value, int color)
     {
         GD.Print($"MainEngine: AnimateOpponentDiscardEffect for {playerId}, count={_activeAnimationsCount}");
-        if (_activeAnimationsCount > 0) return;
 
         Control sourceNode = null;
         OpponentUI oppUI = GetOpponentUIForPlayer(playerId);
@@ -1177,6 +1185,35 @@ public partial class MainEngine : Control
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
             }));
+        }
+    }
+
+    private void UpdateTurnTimers(int activePlayerIndex, long startTime, int duration)
+    {
+        // First, stop all timers
+        _localNameplate?.StopTimer();
+        TopOpponent?.StopTimer();
+        LeftOpponent?.StopTimer();
+        RightOpponent?.StopTimer();
+
+        if (_matchManager.Status != GameStatus.Playing) return;
+
+        // Start timer for the active player
+        int relIdx = GetRelativeIndex($"p{activePlayerIndex}");
+        switch (relIdx)
+        {
+            case 0:
+                _localNameplate?.UpdateTimer(startTime, duration);
+                break;
+            case 1:
+                RightOpponent?.UpdateTimer(startTime, duration);
+                break;
+            case 2:
+                TopOpponent?.UpdateTimer(startTime, duration);
+                break;
+            case 3:
+                LeftOpponent?.UpdateTimer(startTime, duration);
+                break;
         }
     }
 
@@ -1247,6 +1284,34 @@ public partial class MainEngine : Control
                     }
                 }
                 if (changed) InitializeMultiplayerUI();
+            }
+
+            // Update Turn Timers
+            UpdateTurnTimers(data.ActivePlayer, data.TurnStartTimestamp, data.TurnDuration);
+
+            // Update Bot Visuals
+            if (data.IsBot != null && data.IsBot.Count == _matchManager.Players.Count)
+            {
+                for (int i = 0; i < data.IsBot.Count; i++)
+                {
+                    bool isBot = data.IsBot[i];
+                    int relIdx = GetRelativeIndex($"p{i}");
+                    switch (relIdx)
+                    {
+                        case 0:
+                            _localNameplate?.SetBotMode(isBot);
+                            break;
+                        case 1:
+                            RightOpponent?.SetBotMode(isBot);
+                            break;
+                        case 2:
+                            TopOpponent?.SetBotMode(isBot);
+                            break;
+                        case 3:
+                            LeftOpponent?.SetBotMode(isBot);
+                            break;
+                    }
+                }
             }
 
             if (_localPlayer != null && _localNameLabel != null)

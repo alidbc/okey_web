@@ -32,8 +32,9 @@ public class MatchManager
     public Dictionary<string, List<Tile>> PlayerDiscardPiles { get; set; }
 
     public event Action OnGameStateChanged;
-    public event Action<string, Tile, bool> OnTileDrawn;
-    public event Action<string, Tile> OnTileDiscarded;
+    public event Action<string, Tile, bool, int, bool> OnTileDrawn; // pid, tile, fromDiscard, targetIndex, isDrag
+    public event Action<string, Tile, int> OnTileDiscarded; // pid, tile, rackIndex
+    public event Action OnAutoMoveExecuted;
 
     public MatchManager()
     {
@@ -104,7 +105,7 @@ public class MatchManager
         return GameDeck?.Peek();
     }
 
-    public int DrawFromDeck(string playerId, int targetIndex = -1)
+    public int DrawFromDeck(string playerId, int targetIndex = -1, bool isDrag = false)
     {
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Draw || Players[CurrentPlayerIndex].Id != playerId)
             return -1;
@@ -128,13 +129,13 @@ public class MatchManager
 
         CurrentPhase = TurnPhase.Discard;
         
-        OnTileDrawn?.Invoke(playerId, drawn, false);
+        OnTileDrawn?.Invoke(playerId, drawn, false, finalIndex, isDrag);
         OnGameStateChanged?.Invoke();
         PersistenceManager.SaveMatch(playerId, this); // Simple ID for now
         return finalIndex;
     }
 
-    public int DrawFromDiscard(string playerId, int targetIndex = -1)
+    public int DrawFromDiscard(string playerId, int targetIndex = -1, bool isDrag = false)
     {
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Draw || Players[CurrentPlayerIndex].Id != playerId)
             return -1;
@@ -165,7 +166,7 @@ public class MatchManager
 
         CurrentPhase = TurnPhase.Discard;
         
-        OnTileDrawn?.Invoke(playerId, drawn, true);
+        OnTileDrawn?.Invoke(playerId, drawn, true, finalIndex, isDrag);
         OnGameStateChanged?.Invoke();
         PersistenceManager.SaveMatch(playerId, this);
         return finalIndex;
@@ -179,11 +180,10 @@ public class MatchManager
         Tile tileToDiscard = Players[CurrentPlayerIndex].RemoveTile(tileIndex);
         if (tileToDiscard == null) return false;
 
-        // Add to this player's discard pile (which is the draw pile for the next player)
         // Or if it's the center discard based on the UI
         PlayerDiscardPiles[playerId].Add(tileToDiscard);
         
-        OnTileDiscarded?.Invoke(playerId, tileToDiscard);
+        OnTileDiscarded?.Invoke(playerId, tileToDiscard, tileIndex);
         PersistenceManager.SaveMatch(playerId, this);
         NextTurn();
         return true;
@@ -288,8 +288,19 @@ public class MatchManager
         if (!player.IsBot && player.ConsecutiveMissedTurns >= 3)
         {
             GD.Print($"MatchManager: Player {player.Id} missed {player.ConsecutiveMissedTurns} turns. Replacing with bot.");
-            player.IsBot = true;
-            player.ConnectionState = PlayerConnectionState.REPLACED_BY_BOT;
+            
+            // Upgrade to BotPlayer
+            var bot = new BotPlayer(player.Id, player.Name + " (Bot)", player.AvatarUrl, this);
+            bot.Rack = player.Rack;
+            bot.SeatIndex = player.SeatIndex;
+            bot.IsActive = player.IsActive;
+            bot.ConsecutiveMissedTurns = player.ConsecutiveMissedTurns;
+            bot.ConnectionState = PlayerConnectionState.REPLACED_BY_BOT;
+            
+            Players[CurrentPlayerIndex] = bot;
+            
+            // Force a state sync so clients see the bot indicator immediately
+            OnGameStateChanged?.Invoke();
         }
     }
 
@@ -298,9 +309,13 @@ public class MatchManager
         if (Status != GameStatus.Playing) return;
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        if (now - TurnStartTimestamp > TurnDuration)
+        Player p = Players[CurrentPlayerIndex];
+        int currentTurnDuration = p.IsBot ? 2 : TurnDuration;
+
+        if (now - TurnStartTimestamp > currentTurnDuration)
         {
             ExecuteAutoMove();
+            CheckBotReplacement();
         }
     }
 
@@ -310,28 +325,55 @@ public class MatchManager
         
         if (CurrentPhase == TurnPhase.Draw)
         {
-            // Auto draw from deck
             DrawFromDeck(p.Id);
+            
+            // If it's a bot, completes the turn by discarding immediately as well
+            if (p.IsBot)
+            {
+                AutoDiscard(p);
+            }
         }
         else if (CurrentPhase == TurnPhase.Discard)
         {
-            // Auto discard: random tile or last drawn
-            // Simple strategy: discard last occupied slot or first available tile
-            int lastIndex = -1;
+            AutoDiscard(p);
+            p.ConsecutiveMissedTurns++;
+        }
+        
+        OnAutoMoveExecuted?.Invoke();
+    }
+
+    private void AutoDiscard(Player p)
+    {
+        int tileIndex = -1;
+        if (p is BotPlayer bot)
+        {
+            tileIndex = bot.EvaluateLeastValuableTile();
+        }
+        else
+        {
+            // Fallback for non-bot players (e.g. human timeout)
             for (int i = RackSize - 1; i >= 0; i--)
             {
                 if (p.Rack[i] != null)
                 {
-                    lastIndex = i;
+                    tileIndex = i;
                     break;
                 }
             }
-            
-            if (lastIndex != -1)
-            {
-                DiscardTile(p.Id, lastIndex);
-                p.ConsecutiveMissedTurns++;
-            }
+        }
+        
+        if (tileIndex != -1)
+        {
+            DiscardTile(p.Id, tileIndex);
+        }
+    }
+
+    public void ResetConsecutiveMissedTurns(string playerId)
+    {
+        var player = Players.Find(p => p.Id == playerId);
+        if (player != null)
+        {
+            player.ConsecutiveMissedTurns = 0;
         }
     }
 

@@ -53,7 +53,7 @@ public class BotPlayer : Player
         }
     }
 
-    private int EvaluateLeastValuableTile()
+    public int EvaluateLeastValuableTile()
     {
         // For standard Okey bot, finding the tile least likely to complete a set/run
         // As a placeholder, we pick a random non-wildcard tile

@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://UI/Scripts/OpponentUI.cs" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://df2381nd1" path="res://Assets/avatar.png" id="2_avatar"]
+[ext_resource type="Shader" path="res://Assets/TimerShader.gdshader" id="3_shader"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
 bg_color = Color(0.360784, 0.227451, 0.129412, 1)
@@ -46,6 +47,13 @@ corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_timer"]
+shader = ExtResource("3_shader")
+shader_parameter/value = 0.0
+shader_parameter/thickness = 0.08
+shader_parameter/color = Color(1, 0.75, 0.18, 1)
+shader_parameter/bg_color = Color(1, 1, 1, 0.2)
 
 [node name="OpponentUI" type="HBoxContainer"]
 offset_right = 240.0
@@ -100,6 +108,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_border")
+
+[node name="TurnTimer" type="ColorRect" parent="Nameplate/HBoxContainer/AvatarContainer"]
+material = SubResource("ShaderMaterial_timer")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
 [node name="OnlineIndicator" type="Panel" parent="Nameplate/HBoxContainer/AvatarContainer"]
 custom_minimum_size = Vector2(11, 11)

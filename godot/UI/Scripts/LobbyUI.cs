@@ -54,6 +54,19 @@ namespace OkieRummyGodot.UI.Scripts
             LoadFriends();
         }
 
+        public override void _ExitTree()
+        {
+            if (_networkManager != null)
+            {
+                _networkManager.ConnectionSuccessful -= OnConnectionSuccessful;
+                _networkManager.ConnectionFailed -= OnConnectionFailed;
+                _networkManager.RoomError -= OnRoomError;
+                _networkManager.RoomListReceived -= OnRoomListReceived;
+                _networkManager.RoomCreated -= OnRoomCreated;
+                _networkManager.RoomJoined -= OnRoomJoined;
+            }
+        }
+
         private void ApplyGlassmorphism()
         {
             var style = new StyleBoxFlat();
@@ -109,6 +122,7 @@ namespace OkieRummyGodot.UI.Scripts
 
         private void OnOfflinePressed()
         {
+            _networkManager?.Disconnect();
             GetTree().ChangeSceneToFile(MainGameScenePath);
         }
 

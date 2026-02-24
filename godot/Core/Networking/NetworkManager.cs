@@ -33,6 +33,7 @@ namespace OkieRummyGodot.Core.Networking
         private Dictionary<string, (string roomId, int playerIndex)> _tokenToSession = new Dictionary<string, (string, int)>();
         private Dictionary<(string roomId, int playerIndex), int> _sessionToPeer = new Dictionary<(string, int), int>();
         private Dictionary<int, long> _lastRpcTime = new Dictionary<int, long>();
+        private double _tickTimer = 0;
 
         public bool IsActive => Multiplayer.MultiplayerPeer != null && 
                                 Multiplayer.MultiplayerPeer is ENetMultiplayerPeer &&
@@ -58,6 +59,39 @@ namespace OkieRummyGodot.Core.Networking
 
         public override void _Ready()
         {
+            ForceReady();
+        }
+
+        public override void _Process(double delta)
+        {
+            // Diagnostic monitoring
+            var currentStatus = Multiplayer.MultiplayerPeer?.GetConnectionStatus() ?? MultiplayerPeer.ConnectionStatus.Disconnected;
+            if (currentStatus != _lastStatus)
+            {
+                GD.Print($"NetworkManager: ConnectionStatus changed from {_lastStatus} to {currentStatus}");
+                _lastStatus = currentStatus;
+            }
+
+            if (!Multiplayer.IsServer()) return;
+
+            _tickTimer += delta;
+            if (_tickTimer >= 1.0)
+            {
+                _tickTimer = 0;
+                // Use a copy of keys to avoid modification while iterating if CleanupRoom is called
+                var roomIds = _rooms.Keys.ToList();
+                foreach (var roomId in roomIds)
+                {
+                    if (_rooms.TryGetValue(roomId, out var match))
+                    {
+                        match.CheckTimeouts();
+                    }
+                }
+            }
+        }
+
+        private void ForceReady()
+        {
             GD.Print($"NetworkManager: Ready at path {GetPath()}");
             Multiplayer.ConnectedToServer += OnConnectedToServer;
             Multiplayer.ConnectionFailed += OnConnectionFailed;
@@ -68,6 +102,45 @@ namespace OkieRummyGodot.Core.Networking
                 GD.Print("NetworkManager: Server mode initialized.");
                 Multiplayer.PeerDisconnected += OnPeerDisconnectedOnServer;
             }
+        }
+
+        private MultiplayerPeer.ConnectionStatus _lastStatus = MultiplayerPeer.ConnectionStatus.Disconnected;
+
+        public void Disconnect()
+        {
+            GD.Print("NetworkManager: Force disconnecting and resetting state...");
+            
+            // Close connection if active
+            if (Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer))
+            {
+                GD.Print($"NetworkManager: Closing existing peer of type {Multiplayer.MultiplayerPeer.GetType().Name}");
+                
+                // Disconnect signals to avoid overlapping callbacks or stale references
+                try {
+                    Multiplayer.ConnectedToServer -= OnConnectedToServer;
+                    Multiplayer.ConnectionFailed -= OnConnectionFailed;
+                    Multiplayer.ServerDisconnected -= OnServerDisconnected;
+                } catch { /* Ignore if already disconnected */ }
+
+                if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer enet)
+                {
+                    enet.Close();
+                }
+            }
+            
+            Multiplayer.MultiplayerPeer = null;
+            _peer = null;
+
+            // Reset local state
+            LocalPlayerIndex = -1;
+            _rooms.Clear();
+            _peerToRoom.Clear();
+            _peerToPlayer.Clear();
+            _tokenToSession.Clear();
+            _sessionToPeer.Clear();
+            _lastRpcTime.Clear();
+            _tickTimer = 0;
+            _lastStatus = MultiplayerPeer.ConnectionStatus.Disconnected;
         }
 
         private void OnPeerDisconnectedOnServer(long id)
@@ -182,11 +255,28 @@ namespace OkieRummyGodot.Core.Networking
             }
 
             var match = new MatchManager();
+            SetupRoomEvents(code, match);
             _rooms[code] = match;
             
             GD.Print($"NetworkManager: Created room {code} for peer {peerId}");
             
             JoinRoomLogic(peerId, code);
+        }
+
+        private void SetupRoomEvents(string code, MatchManager match)
+        {
+            match.OnAutoMoveExecuted += () => {
+                GD.Print($"NetworkManager: Auto-move executed in room {code}. Broadcasting state.");
+                BroadcastGameStateInRoom(code);
+            };
+
+            match.OnTileDrawn += (pid, tile, fromDiscard, targetIndex, isDrag) => {
+                Rpc(nameof(NotifyTileDrawn), pid, fromDiscard, targetIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0), isDrag);
+            };
+
+            match.OnTileDiscarded += (pid, tile, rackIndex) => {
+                Rpc(nameof(NotifyTileDiscarded), pid, rackIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0));
+            };
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
@@ -308,15 +398,44 @@ namespace OkieRummyGodot.Core.Networking
 
         public void ConnectToServer(string ip, int port)
         {
-            GD.Print($"NetworkManager: Connecting to {ip}:{port}...");
-            var error = _peer.CreateClient(ip, port);
+            GD.Print($"NetworkManager: ConnectToServer requested for {ip}:{port}");
+            
+            // 1. Hard reset any existing connections properly
+            Disconnect();
+            
+            GD.Print($"NetworkManager: Starting fresh connection to {ip}:{port}...");
+            
+            // 2. Re-instantiate peer
+            var nextPeer = new ENetMultiplayerPeer();
+            var error = nextPeer.CreateClient(ip, port);
+            
             if (error != Error.Ok)
             {
-                GD.PrintErr($"NetworkManager: Error creating client: {error}");
+                GD.PrintErr($"NetworkManager: Error creating ENet client: {error}");
                 EmitSignal(SignalName.ConnectionFailed);
                 return;
             }
-            Multiplayer.MultiplayerPeer = _peer;
+            
+            // 3. Assign peer deferredly to ensure the previous peer is fully cleared from Godot's internals
+            _peer = nextPeer;
+            CallDeferred(nameof(SetDeferredPeer), _peer);
+        }
+
+        private void SetDeferredPeer(MultiplayerPeer newPeer)
+        {
+            // Re-bind signals to the persistent Multiplayer object for this node
+            try {
+                Multiplayer.ConnectedToServer -= OnConnectedToServer;
+                Multiplayer.ConnectionFailed -= OnConnectionFailed;
+                Multiplayer.ServerDisconnected -= OnServerDisconnected;
+            } catch { }
+
+            Multiplayer.ConnectedToServer += OnConnectedToServer;
+            Multiplayer.ConnectionFailed += OnConnectionFailed;
+            Multiplayer.ServerDisconnected += OnServerDisconnected;
+
+            Multiplayer.MultiplayerPeer = newPeer;
+            GD.Print($"NetworkManager: Peer assigned DEFERRED. Status: {newPeer.GetConnectionStatus()}");
         }
 
         private void OnConnectedToServer()
@@ -400,11 +519,11 @@ namespace OkieRummyGodot.Core.Networking
 
             if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
             {
+                match.ResetConsecutiveMissedTurns(pid);
                 bool wasDrag = targetIndex != -1;
-                int landedIndex = match.DrawFromDeck(pid, targetIndex);
+                int landedIndex = match.DrawFromDeck(pid, targetIndex, wasDrag);
                 if (landedIndex != -1)
                 {
-                    Rpc(nameof(NotifyTileDrawn), pid, false, landedIndex, "", 0, 0, wasDrag);
                     BroadcastGameStateInRoom(roomId);
                 }
             }
@@ -427,16 +546,11 @@ namespace OkieRummyGodot.Core.Networking
 
             if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
             {
+                match.ResetConsecutiveMissedTurns(pid);
                 bool wasDrag = targetIndex != -1;
-                int leftPlayerIndex = (match.CurrentPlayerIndex - 1 + match.Players.Count) % match.Players.Count;
-                string leftPlayerId = match.Players[leftPlayerIndex].Id;
-                var pile = match.PlayerDiscardPiles[leftPlayerId];
-                Tile topTile = pile.Count > 0 ? pile[^1] : null;
-
-                int landedIndex = match.DrawFromDiscard(pid, targetIndex);
+                int landedIndex = match.DrawFromDiscard(pid, targetIndex, wasDrag);
                 if (landedIndex != -1)
                 {
-                    Rpc(nameof(NotifyTileDrawn), pid, true, landedIndex, topTile?.Id ?? "", topTile?.Value ?? 0, (int)(topTile?.Color ?? 0), wasDrag);
                     BroadcastGameStateInRoom(roomId);
                 }
             }
@@ -461,11 +575,10 @@ namespace OkieRummyGodot.Core.Networking
 
             if (match.Status == GameStatus.Playing && match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Discard)
             {
-                var tile = match.Players[playerIndex].Rack[rackIndex];
+                match.ResetConsecutiveMissedTurns(pid);
                 if (match.DiscardTile(pid, rackIndex))
                 {
                     GD.Print($"NetworkManager: Discard successful for {pid}. Broadcasting state.");
-                    Rpc(nameof(NotifyTileDiscarded), pid, rackIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0));
                     BroadcastGameStateInRoom(roomId);
                 }
                 else
@@ -504,6 +617,7 @@ namespace OkieRummyGodot.Core.Networking
             var player = match.Players[playerIndex];
 
             player.MoveTile(fromIndex, toIndex);
+            match.ResetConsecutiveMissedTurns(player.Id);
             // No need to broadcast, client already did the move locally.
             // This just keeps server's record up to date for future syncs.
         }
@@ -579,6 +693,7 @@ namespace OkieRummyGodot.Core.Networking
 
             if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Discard)
             {
+                match.ResetConsecutiveMissedTurns(pid);
                 var (success, message) = match.FinishGame(pid, rackIndex);
                 if (success)
                 {
@@ -608,6 +723,9 @@ namespace OkieRummyGodot.Core.Networking
                 Status = match.Status == GameStatus.Menu ? "Lobby" : (match.Status == GameStatus.Victory ? "Victory" : "Active"),
                 Discards = new List<List<Tile>>(),
                 PlayerNames = new List<string>(),
+                TurnStartTimestamp = match.TurnStartTimestamp,
+                TurnDuration = match.TurnDuration,
+                IsBot = match.Players.Select(p => p.IsBot).ToList(),
                 WinnerId = match.WinnerId,
                 WinnerTiles = match.WinnerTiles
             };

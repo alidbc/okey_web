@@ -103,7 +103,25 @@ public static class RuleEngine
         
         bool hasOne = nonWild.Any(t => t.Value == 1);
         if (hasOne && CheckSequence(true)) return true;
-        
         return false;
+    }
+
+    public static int CalculatePenalty(Tile[] rack)
+    {
+        int penalty = 0;
+        foreach (var tile in rack)
+        {
+            if (tile == null) continue;
+            
+            if (tile.IsWildcard)
+            {
+                penalty += 20; // High penalty for wildcards
+            }
+            else
+            {
+                penalty += tile.Value;
+            }
+        }
+        return penalty;
     }
 }

@@ -18,6 +18,17 @@ public partial class TileUI : TextureRect
             UpdateVisuals();
         }
     }
+
+    private bool _isFullyHidden = false;
+    public bool IsFullyHidden
+    {
+        get => _isFullyHidden;
+        set
+        {
+            _isFullyHidden = value;
+            UpdateVisuals();
+        }
+    }
     
     // Allows parent containers to tint the tile (like the indicator tile)
     public Color BaseModulate = new Color(1, 1, 1, 1);
@@ -66,9 +77,33 @@ public partial class TileUI : TextureRect
 
     private void UpdateVisuals()
     {
-        if (TileData == null || IsVisualSuppressed)
+        // 0. If fully hidden, make completely transparent (used to hide source of animations)
+        if (IsFullyHidden)
         {
-            Modulate = new Color(BaseModulate.R, BaseModulate.G, BaseModulate.B, 0); // Hide completely
+            Modulate = new Color(BaseModulate.R, BaseModulate.G, BaseModulate.B, 0);
+            if (_numberLabel != null) _numberLabel.Visible = false;
+            if (_heartIcon != null) _heartIcon.Visible = false;
+            if (_fakeOkeyIcon != null) _fakeOkeyIcon.Visible = false;
+            return;
+        }
+
+        // 1. If suppressed (e.g. deck draw animation/drag), show background but hide face
+        if (IsVisualSuppressed)
+        {
+            Modulate = BaseModulate;
+            if (_numberLabel != null) _numberLabel.Visible = false;
+            if (_heartIcon != null) _heartIcon.Visible = false;
+            if (_fakeOkeyIcon != null) _fakeOkeyIcon.Visible = false;
+            return;
+        }
+
+        // 2. If not suppressed and no data, it's an empty slot - hide completely
+        if (TileData == null)
+        {
+            Modulate = new Color(BaseModulate.R, BaseModulate.G, BaseModulate.B, 0);
+            if (_numberLabel != null) _numberLabel.Visible = false;
+            if (_heartIcon != null) _heartIcon.Visible = false;
+            if (_fakeOkeyIcon != null) _fakeOkeyIcon.Visible = false;
             return;
         }
 

@@ -19,6 +19,7 @@ namespace OkieRummyGodot.Core.Networking
     public class RackSyncData
     {
         public List<Tile> Slots { get; set; }
+        public Tile NextDeckTile { get; set; }
     }
 
     public class RoomInfo

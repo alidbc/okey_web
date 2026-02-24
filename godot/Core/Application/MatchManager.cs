@@ -96,7 +96,13 @@ public class MatchManager
         GameDeck.ApplyOkeyRules(okeyValue, IndicatorTile.Color);
     }
 
-    public Tile PeekDeck() => GameDeck?.Peek();
+    public Tile NextDeckTileHint { get; set; }
+
+    public Tile PeekDeck() 
+    {
+        if (NextDeckTileHint != null) return NextDeckTileHint;
+        return GameDeck?.Peek();
+    }
 
     public int DrawFromDeck(string playerId, int targetIndex = -1)
     {
@@ -227,13 +233,27 @@ public class MatchManager
         var scores = new List<PlayerScore>();
         foreach (var p in Players)
         {
+            bool isWinner = Status == GameStatus.Victory && p.Id == WinnerId;
+            int scoreValue = 0;
+
+            if (isWinner)
+            {
+                scoreValue = 100; // Bonus for winning
+            }
+            else
+            {
+                // Penalty-based scoring: 100 - total penalty (capped at 0)
+                int penalty = RuleEngine.CalculatePenalty(p.Rack);
+                scoreValue = Math.Max(0, 100 - penalty);
+            }
+
             scores.Add(new PlayerScore
             {
                 PlayerId = p.Id,
                 PlayerName = p.Name,
                 AvatarUrl = p.AvatarUrl,
-                IsWinner = Status == GameStatus.Victory && p.IsActive, // The player who just finished
-                Score = (Status == GameStatus.Victory && p.IsActive) ? 100 : 0
+                IsWinner = isWinner,
+                Score = scoreValue
             });
         }
         return scores;

@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using OkieRummyGodot.Core.Domain;
 using OkieRummyGodot.Core.Application;
 
@@ -17,9 +18,11 @@ namespace OkieRummyGodot.Server
         public override void _Ready()
         {
             bool noServer = false;
-            foreach (var arg in OS.GetCmdlineArgs())
+            foreach (var arg in OS.GetCmdlineArgs().Concat(OS.GetCmdlineUserArgs()))
             {
                 if (arg == "--no-server") noServer = true;
+                if (arg == "--test-marathon-host") noServer = true;
+                if (arg == "--test-marathon-join") noServer = true;
             }
 
             if (!noServer && (DisplayServer.GetName() == "headless" || OS.HasFeature("server")))

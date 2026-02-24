@@ -42,6 +42,14 @@ public partial class MainEngine : Control
 
     private TileUI[] _dzTiles = new TileUI[4];
     private int _activeAnimationsCount = 0;
+    
+    private struct PendingDrawAnimation
+    {
+        public bool FromDiscard;
+        public int TargetSlot;
+    }
+    private Queue<PendingDrawAnimation> _pendingDrawAnimations = new Queue<PendingDrawAnimation>();
+
     private Godot.Timer _feedbackTimer;
     private bool _isShowingFeedback = false;
     private Control _lastCheckTarget;
@@ -171,6 +179,8 @@ public partial class MainEngine : Control
             NetworkManager.BoardStateSynced += OnBoardStateSynced;
             NetworkManager.PrivateRackSynced += OnPrivateRackSynced;
             NetworkManager.WinCheckResultReceived += OnWinCheckResultReceived;
+            NetworkManager.TileDrawn += OnTileDrawnSync;
+            NetworkManager.TileDiscarded += OnTileDiscardedSync;
         }
 
         _matchManager = new MatchManager();
@@ -569,8 +579,6 @@ public partial class MainEngine : Control
 
     private void OnDrawToSlot(bool fromDiscard, int targetIndex, bool animate)
     {
-        if (animate) _activeAnimationsCount++;
-
         if (_isMultiplayer)
         {
             if (fromDiscard)
@@ -581,8 +589,11 @@ public partial class MainEngine : Control
             {
                 NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestDrawFromDeck), targetIndex);
             }
+            // In multiplayer, wait for the server before incrementing _activeAnimationsCount and running visuals
             return;
         }
+
+        if (animate) _activeAnimationsCount++;
 
         int landedIndex = -1;
         if (fromDiscard)
@@ -629,14 +640,19 @@ public partial class MainEngine : Control
 
         if (sourceNode != null && targetNode != null && drawnTile != null)
         {
+            _activeAnimationsCount++;
+            
+            // Set tile UI temporarily hidden before animation starts so it doesn't snap
+            targetTileUI.Visible = false;
+            
              AnimateTileMove(sourceNode, targetNode, drawnTile, targetTileUI, null, () => {
+                targetTileUI.Visible = true;
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
             });
         }
         else
         {
-            _activeAnimationsCount--;
             HandleGameStateChanged(true);
         }
     }
@@ -821,23 +837,8 @@ public partial class MainEngine : Control
             sourceNode = GetDiscardSourceForPlayer(playerId);
             sourceTileUI = GetDiscardTileUIAtNode(sourceNode);
         }
-        else
-        {
-            sourceNode = _boardCenter?.DeckCountBadge;
-        }
-
-        Control targetNode = GetOpponentUIById(playerId);
-
-        if (sourceNode != null && targetNode != null)
-        {
-            _activeAnimationsCount++;
-            AnimateTileMove(sourceNode, targetNode, tile, null, sourceTileUI, () => {
-                _activeAnimationsCount--;
-                HandleGameStateChanged(true);
-            });
-        }
     }
-
+    
     private void OnMatchTileDiscarded(string playerId, Tile tile)
     {
         if (playerId == _localPlayer.Id) return;
@@ -1009,6 +1010,181 @@ public partial class MainEngine : Control
             onComplete?.Invoke();
         };
     }
+    private void OnTileDrawnSync(string playerId, bool fromDiscard, int targetSlotIndex, string tileId, int value, int color, bool wasDrag)
+    {
+        GD.Print($"MainEngine: OnTileDrawnSync triggered for {playerId}, fromDiscard:{fromDiscard}, targetSlot:{targetSlotIndex}, wasDrag:{wasDrag}");
+        if (playerId == _localPlayer?.Id)
+        {
+            // Only skip the flying animation if the user already dragged it.
+            if (wasDrag)
+            {
+                GD.Print("MainEngine: Local draw was via drag-and-drop. Skipping flying animation.");
+                return;
+            }
+
+            GD.Print($"MainEngine: Queuing local draw effect until rack sync arrives");
+            _pendingDrawAnimations.Enqueue(new PendingDrawAnimation { FromDiscard = fromDiscard, TargetSlot = targetSlotIndex });
+        }
+        else
+        {
+            GD.Print($"MainEngine: Animating opponent draw effect");
+            AnimateOpponentDrawEffect(playerId, fromDiscard, tileId, value, color, wasDrag);
+        }
+    }
+
+    private void OnTileDiscardedSync(string playerId, int previousRackIndex, string tileId, int value, int color)
+    {
+        GD.Print($"MainEngine: OnTileDiscardedSync triggered for {playerId}, index:{previousRackIndex}, tileId:{tileId}");
+        if (playerId == _localPlayer?.Id)
+        {
+            GD.Print($"MainEngine: Skipping local discard effect (already animated via drag/drop)");
+        }
+        else
+        {
+            GD.Print($"MainEngine: Animating opponent discard effect");
+            AnimateOpponentDiscardEffect(playerId, tileId, value, color);
+        }
+    }
+
+    private void AnimateOpponentDrawEffect(string playerId, bool fromDiscard, string tileId, int value, int color, bool wasDrag)
+    {
+        GD.Print($"MainEngine: AnimateOpponentDrawEffect for {playerId}, count={_activeAnimationsCount}, tileId={tileId}");
+        // Removed blocking to allow concurrent animations
+
+
+        Control sourceNode = fromDiscard ? GetDiscardSourceForPlayer(playerId) : _boardCenter?.DeckCountBadge;
+        Control targetNode = null;
+        OpponentUI oppUI = GetOpponentUIForPlayer(playerId);
+        if (oppUI != null)
+        {
+            targetNode = oppUI.GetNodeOrNull<Control>("Nameplate/HBoxContainer/AvatarContainer");
+        }
+
+        GD.Print($"MainEngine: Draw: sourceNode={sourceNode != null}, oppUI={oppUI != null}, targetNode={targetNode != null}");
+
+        if (sourceNode != null && targetNode != null)
+        {
+            _activeAnimationsCount++;
+            GD.Print($"MainEngine: Starting Opponent Draw Tween, count now {_activeAnimationsCount}");
+            
+            var animSprite = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn").Instantiate<TileUI>();
+            animSprite.Size = new Vector2(75, 104);
+            animSprite.CustomMinimumSize = new Vector2(75, 104);
+            
+            AddChild(animSprite);
+
+            if (fromDiscard && !string.IsNullOrEmpty(tileId))
+            {
+                Tile mockData = new Tile(tileId, value, (TileColor)color);
+                animSprite.SetTileData(mockData);
+                animSprite.IsVisualSuppressed = false;
+            }
+            else
+            {
+                // Hide its contents initially since it's a draw from deck
+                animSprite.IsVisualSuppressed = true; 
+            }
+            
+            animSprite.GlobalPosition = sourceNode.GlobalPosition + sourceNode.Size / 2 - animSprite.Size / 2;
+
+            var tween = CreateTween();
+            tween.TweenProperty(animSprite, "global_position", targetNode.GlobalPosition + targetNode.Size / 2 - animSprite.Size / 2, 0.4f)
+                 .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+            tween.Parallel().TweenProperty(animSprite, "modulate:a", 0.0f, 0.4f);
+
+            TileUI hideSource = null;
+            if (fromDiscard)
+            {
+                var dzNodes = new DiscardZoneUI[] { DZ1, DZ2, DZ3, DZ4 };
+                for (int i = 0; i < 4; i++)
+                {
+                    if (dzNodes[i] == sourceNode)
+                    {
+                        hideSource = _dzTiles[i];
+                        break;
+                    }
+                }
+            }
+
+            if (hideSource != null) hideSource.IsFullyHidden = true;
+
+            tween.TweenCallback(Callable.From(() => {
+                GD.Print($"MainEngine: Opponent Draw Tween finished");
+                if (hideSource != null) hideSource.IsFullyHidden = false;
+                animSprite.QueueFree();
+                _activeAnimationsCount--;
+                HandleGameStateChanged(true);
+            }));
+        }
+    }
+
+    private void AnimateOpponentDiscardEffect(string playerId, string tileId, int value, int color)
+    {
+        GD.Print($"MainEngine: AnimateOpponentDiscardEffect for {playerId}, count={_activeAnimationsCount}");
+        if (_activeAnimationsCount > 0) return;
+
+        Control sourceNode = null;
+        OpponentUI oppUI = GetOpponentUIForPlayer(playerId);
+        if (oppUI != null)
+        {
+            sourceNode = oppUI.GetNodeOrNull<Control>("Nameplate/HBoxContainer/AvatarContainer");
+        }
+
+        Control targetNode = GetDiscardTargetForPlayer(playerId);
+        GD.Print($"MainEngine: Discard: sourceNode={sourceNode != null}, oppUI={oppUI != null}, targetNode={targetNode != null}");
+
+        if (sourceNode != null && targetNode != null)
+        {
+            _activeAnimationsCount++;
+            GD.Print($"MainEngine: Starting Opponent Discard Tween, count now {_activeAnimationsCount}");
+            
+            Tile mockData = new Tile(tileId, value, (TileColor)color);
+            
+            var animSprite = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn").Instantiate<TileUI>();
+            animSprite.Size = new Vector2(75, 104);
+            animSprite.CustomMinimumSize = new Vector2(75, 104);
+            
+            AddChild(animSprite);
+            if (mockData != null) {
+                animSprite.SetTileData(mockData);
+            } else {
+                animSprite.IsVisualSuppressed = true;
+            }
+            
+            animSprite.GlobalPosition = sourceNode.GlobalPosition + sourceNode.Size / 2 - animSprite.Size / 2;
+
+            var tween = CreateTween();
+            tween.TweenProperty(animSprite, "global_position", targetNode.GlobalPosition + targetNode.Size / 2 - animSprite.Size / 2, 0.4f)
+                 .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+            
+            TileUI suppressTarget = null;
+            var dzNodes = new DiscardZoneUI[] { DZ1, DZ2, DZ3, DZ4 };
+            for (int i = 0; i < 4; i++)
+            {
+                if (dzNodes[i] == targetNode)
+                {
+                    suppressTarget = _dzTiles[i];
+                    break;
+                }
+            }
+
+            if (suppressTarget != null) suppressTarget.IsFullyHidden = true;
+
+            tween.TweenCallback(Callable.From(() => {
+                GD.Print($"MainEngine: Opponent Discard Tween finished");
+                if (suppressTarget != null) suppressTarget.IsFullyHidden = false;
+                animSprite.QueueFree();
+                _activeAnimationsCount--;
+                HandleGameStateChanged(true);
+            }));
+        }
+    }
+
+    private OpponentUI GetOpponentUIForPlayer(string playerId)
+    {
+        return GetOpponentUIById(playerId) as OpponentUI;
+    }
+
     private void OnBoardStateSynced(string json)
     {
         try
@@ -1097,6 +1273,13 @@ public partial class MainEngine : Control
             // Always ensure UI signals are connected if they aren't
             ConnectDynamicUI();
 
+            // Prevent multiplayer state sync from snapping tiles mid-animation
+            if (_activeAnimationsCount > 0)
+            {
+                GD.Print("MainEngine: Animation active, skipping instant visual refresh from Board Sync.");
+                return;
+            }
+
             HandleGameStateChanged(true);
         }
         catch (Exception ex)
@@ -1117,12 +1300,25 @@ public partial class MainEngine : Control
             }
 
             GD.Print($"MainEngine: Received Rack Sync. Tiles: {data.Slots.Count}");
+            _matchManager.NextDeckTileHint = data.NextDeckTile;
+            
             for (int i = 0; i < data.Slots.Count && i < _localPlayer.Rack.Length; i++)
             {
                 _localPlayer.Rack[i] = data.Slots[i];
             }
 
-            LocalRackUI?.RefreshVisuals();
+            while (_pendingDrawAnimations.Count > 0)
+            {
+                var anim = _pendingDrawAnimations.Dequeue();
+                AnimateDrawEffect(anim.FromDiscard, anim.TargetSlot, true);
+            }
+
+            // In multiplayer, the Draw animation needs the data to be there but we shouldn't snap it.
+            // RefreshVisuals is skipped if an animation is active via HandleGameStateChanged(true).
+            if (_activeAnimationsCount == 0)
+            {
+                LocalRackUI?.RefreshVisuals();
+            }
         }
         catch (Exception ex)
         {

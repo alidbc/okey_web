@@ -3,9 +3,9 @@
 [ext_resource type="Script" path="res://UI/Scripts/LobbyUI.cs" id="1_lobby"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-bg_color = Color(0.0941176, 0.113725, 0.152941, 1)
+bg_color = Color(0.0431373, 0.0901961, 0.0823529, 1)
 
-[node name="Lobby" type="Control" node_paths=PackedStringArray("RoomCodeInput", "StatusLabel", "HostButton", "JoinButton", "OfflineButton", "BrowseButton", "RoomListContainer")]
+[node name="Lobby" type="Control" node_paths=PackedStringArray("RoomCodeInput", "StatusLabel", "HostButton", "JoinButton", "OfflineButton", "BrowseButton", "RoomListContainer", "FriendsListContainer", "AddFriendInput", "AddFriendButton")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -13,13 +13,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_lobby")
-RoomCodeInput = NodePath("CenterContainer/MainLayout/PrivateSection/RoomCodeInput")
-StatusLabel = NodePath("CenterContainer/MainLayout/PrivateSection/StatusLabel")
-HostButton = NodePath("CenterContainer/MainLayout/PrivateSection/HostButton")
-JoinButton = NodePath("CenterContainer/MainLayout/PrivateSection/JoinButton")
-OfflineButton = NodePath("CenterContainer/MainLayout/PrivateSection/OfflineButton")
-BrowseButton = NodePath("CenterContainer/MainLayout/PublicSection/BrowseButton")
-RoomListContainer = NodePath("CenterContainer/MainLayout/PublicSection/ScrollContainer/RoomListContainer")
+RoomCodeInput = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxContainer/PrivateSection/HBoxContainer/RoomCodeInput")
+StatusLabel = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxContainer/StatusLabel")
+HostButton = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxContainer/PrivateSection/HostButton")
+JoinButton = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxContainer/PrivateSection/HBoxContainer/JoinButton")
+OfflineButton = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxContainer/OfflineButton")
+BrowseButton = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxContainer/PublicSection/BrowseButton")
+RoomListContainer = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxContainer/PublicSection/ScrollContainer/RoomListContainer")
+FriendsListContainer = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/ScrollContainer/FriendsListContainer")
+AddFriendInput = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox/FriendNameInput")
+AddFriendButton = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox/AddButton")
 
 [node name="Background" type="Panel" parent="."]
 layout_mode = 1
@@ -30,91 +33,126 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 40
 
-[node name="MainLayout" type="HBoxContainer" parent="CenterContainer"]
+[node name="MainLayout" type="HBoxContainer" parent="MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 80
+theme_override_constants/separation = 40
 
-[node name="PrivateSection" type="VBoxContainer" parent="CenterContainer/MainLayout"]
-custom_minimum_size = Vector2(300, 0)
+[node name="RoomManagement" type="PanelContainer" parent="MarginContainer/MainLayout"]
 layout_mode = 2
-theme_override_constants/separation = 20
+size_flags_horizontal = 3
 
-[node name="Title" type="Label" parent="CenterContainer/MainLayout/PrivateSection"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainLayout/RoomManagement"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 32
+theme_override_constants/separation = 30
+alignment = 1
+
+[node name="Title" type="Label" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.721569, 0.52549, 0.0431373, 1)
+theme_override_font_sizes/font_size = 42
 text = "OKEY RUMMY PRO"
 horizontal_alignment = 1
 
-[node name="StatusLabel" type="Label" parent="CenterContainer/MainLayout/PrivateSection"]
+[node name="StatusLabel" type="Label" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
-text = "Select a game mode"
+theme_override_colors/font_color = Color(1, 1, 1, 0.5)
+text = "Welcome back, Player"
 horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="CenterContainer/MainLayout/PrivateSection"]
-layout_mode = 2
-
-[node name="HostButton" type="Button" parent="CenterContainer/MainLayout/PrivateSection"]
-custom_minimum_size = Vector2(0, 50)
-layout_mode = 2
-text = "CREATE ONLINE ROOM"
-
-[node name="HSeparator2" type="HSeparator" parent="CenterContainer/MainLayout/PrivateSection"]
-layout_mode = 2
-
-[node name="RoomCodeInput" type="LineEdit" parent="CenterContainer/MainLayout/PrivateSection"]
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-placeholder_text = "Enter 4-digit code"
-alignment = 1
-max_length = 4
-
-[node name="JoinButton" type="Button" parent="CenterContainer/MainLayout/PrivateSection"]
-custom_minimum_size = Vector2(0, 50)
-layout_mode = 2
-text = "JOIN ROOM"
-
-[node name="HSeparator3" type="HSeparator" parent="CenterContainer/MainLayout/PrivateSection"]
-layout_mode = 2
-
-[node name="OfflineButton" type="Button" parent="CenterContainer/MainLayout/PrivateSection"]
-custom_minimum_size = Vector2(0, 50)
-layout_mode = 2
-text = "PLAY OFFLINE (BOTS)"
-
-[node name="VSeparator" type="VSeparator" parent="CenterContainer/MainLayout"]
-layout_mode = 2
-
-[node name="PublicSection" type="VBoxContainer" parent="CenterContainer/MainLayout"]
-custom_minimum_size = Vector2(350, 0)
+[node name="PrivateSection" type="VBoxContainer" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer"]
 layout_mode = 2
 theme_override_constants/separation = 15
 
-[node name="Subtitle" type="Label" parent="CenterContainer/MainLayout/PublicSection"]
+[node name="HostButton" type="Button" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PrivateSection"]
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "PUBLIC ROOMS"
-horizontal_alignment = 1
+text = "CREATE ONLINE ROOM"
 
-[node name="BrowseButton" type="Button" parent="CenterContainer/MainLayout/PublicSection"]
-custom_minimum_size = Vector2(0, 40)
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PrivateSection"]
 layout_mode = 2
-text = "FIND PUBLIC GAMES"
+theme_override_constants/separation = 10
 
-[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/MainLayout/PublicSection"]
-custom_minimum_size = Vector2(0, 300)
-layout_mode = 2
-horizontal_scroll_mode = 0
-
-[node name="RoomListContainer" type="VBoxContainer" parent="CenterContainer/MainLayout/PublicSection/ScrollContainer"]
+[node name="RoomCodeInput" type="LineEdit" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PrivateSection/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 5
+placeholder_text = "ROOM CODE"
+alignment = 1
+max_length = 4
+
+[node name="JoinButton" type="Button" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PrivateSection/HBoxContainer"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+text = "JOIN"
+
+[node name="PublicSection" type="VBoxContainer" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PublicSection"]
+layout_mode = 2
+text = "PUBLIC GAMES"
+horizontal_alignment = 1
+
+[node name="BrowseButton" type="Button" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PublicSection"]
+layout_mode = 2
+text = "REFRESH LIST"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PublicSection"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RoomListContainer" type="VBoxContainer" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer/PublicSection/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="OfflineButton" type="Button" parent="MarginContainer/MainLayout/RoomManagement/VBoxContainer"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+text = "PRACTICE (OFFLINE BOTS)"
+
+[node name="FriendsPanel" type="PanelContainer" parent="MarginContainer/MainLayout"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainLayout/FriendsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="Title" type="Label" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "FRIENDS"
+horizontal_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="FriendsListContainer" type="VBoxContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AddFriendBox" type="HBoxContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
+layout_mode = 2
+
+[node name="FriendNameInput" type="LineEdit" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Add name..."
+
+[node name="AddButton" type="Button" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox"]
+layout_mode = 2
+text = "+"

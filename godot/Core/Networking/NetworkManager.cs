@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using OkieRummyGodot.Core.Application;
 using OkieRummyGodot.Core.Domain;
 
@@ -20,6 +21,8 @@ namespace OkieRummyGodot.Core.Networking
         [Signal] public delegate void RoomErrorEventHandler(string message);
         [Signal] public delegate void RoomListReceivedEventHandler(string json);
         [Signal] public delegate void WinCheckResultReceivedEventHandler(bool success, string message);
+        [Signal] public delegate void TileDrawnEventHandler(string playerId, bool fromDiscard, int targetSlotIndex, string tileId, int value, int color, bool wasDrag);
+        [Signal] public delegate void TileDiscardedEventHandler(string playerId, int rackIndex, string tileId, int value, int color);
 
         [Export] public string MainGameScenePath = "res://UI/Scenes/Main.tscn";
         
@@ -29,6 +32,7 @@ namespace OkieRummyGodot.Core.Networking
         private Dictionary<int, int> _peerToPlayer = new Dictionary<int, int>(); // peerId -> playerIndex (0-3) within their room
         private Dictionary<string, (string roomId, int playerIndex)> _tokenToSession = new Dictionary<string, (string, int)>();
         private Dictionary<(string roomId, int playerIndex), int> _sessionToPeer = new Dictionary<(string, int), int>();
+        private Dictionary<int, long> _lastRpcTime = new Dictionary<int, long>();
 
         public bool IsActive => Multiplayer.MultiplayerPeer != null && 
                                 Multiplayer.MultiplayerPeer is ENetMultiplayerPeer &&
@@ -79,6 +83,7 @@ namespace OkieRummyGodot.Core.Networking
                 
                 _peerToRoom.Remove(peerId);
                 _peerToPlayer.Remove(peerId);
+                _lastRpcTime.Remove(peerId);
                 _sessionToPeer.Remove((roomId, playerIndex));
                 
                 GD.Print($"NetworkManager: Peer {peerId} (Player {playerIndex}) disconnected from room {roomId}");
@@ -153,16 +158,25 @@ namespace OkieRummyGodot.Core.Networking
         {
             if (!Multiplayer.IsServer()) return;
             int peerId = Multiplayer.GetRemoteSenderId();
+
+            if (IsThrottled(peerId)) return;
             
             // Generate a unique room code
             string code = GD.RandRange(1000, 9999).ToString();
             
+            // Auto-Test Mode Override
+            var args = OS.GetCmdlineArgs().Concat(OS.GetCmdlineUserArgs()).ToArray();
+            if (args.Contains("--test-marathon-host"))
+            {
+                code = "9999";
+            }
+            
             // For automated testing
             bool isTest = false;
-            foreach(var arg in OS.GetCmdlineArgs()) if(arg == "--test-mode") isTest = true;
-            if (isTest) code = "TEST";
+            foreach(var arg in args) if(arg == "--test-mode" || arg == "--test-marathon-host" || arg == "--server") isTest = true;
+            if (isTest) code = "9999";
 
-            while (_rooms.ContainsKey(code) && code != "TEST")
+            while (_rooms.ContainsKey(code) && code != "9999")
             {
                 code = GD.RandRange(1000, 9999).ToString();
             }
@@ -180,6 +194,8 @@ namespace OkieRummyGodot.Core.Networking
         {
             if (!Multiplayer.IsServer()) return;
             int peerId = Multiplayer.GetRemoteSenderId();
+
+            if (IsThrottled(peerId)) return;
 
             if (!_rooms.ContainsKey(code))
             {
@@ -350,6 +366,8 @@ namespace OkieRummyGodot.Core.Networking
             if (!Multiplayer.IsServer()) return;
             int senderId = Multiplayer.GetRemoteSenderId();
 
+            if (IsThrottled(senderId)) return;
+
             var roomList = new RoomListSyncData { Rooms = new List<RoomInfo>() };
             foreach (var kvp in _rooms)
             {
@@ -378,10 +396,15 @@ namespace OkieRummyGodot.Core.Networking
             int playerIndex = _peerToPlayer[senderId];
             string pid = GetPlayerIdFromIndex(playerIndex);
 
+            if (targetIndex < -1 || targetIndex >= 26) return;
+
             if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
             {
-                if (match.DrawFromDeck(pid, targetIndex) != -1)
+                bool wasDrag = targetIndex != -1;
+                int landedIndex = match.DrawFromDeck(pid, targetIndex);
+                if (landedIndex != -1)
                 {
+                    Rpc(nameof(NotifyTileDrawn), pid, false, landedIndex, "", 0, 0, wasDrag);
                     BroadcastGameStateInRoom(roomId);
                 }
             }
@@ -400,10 +423,20 @@ namespace OkieRummyGodot.Core.Networking
             int playerIndex = _peerToPlayer[senderId];
             string pid = GetPlayerIdFromIndex(playerIndex);
 
+            if (targetIndex < -1 || targetIndex >= 26) return;
+
             if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
             {
-                if (match.DrawFromDiscard(pid, targetIndex) != -1)
+                bool wasDrag = targetIndex != -1;
+                int leftPlayerIndex = (match.CurrentPlayerIndex - 1 + match.Players.Count) % match.Players.Count;
+                string leftPlayerId = match.Players[leftPlayerIndex].Id;
+                var pile = match.PlayerDiscardPiles[leftPlayerId];
+                Tile topTile = pile.Count > 0 ? pile[^1] : null;
+
+                int landedIndex = match.DrawFromDiscard(pid, targetIndex);
+                if (landedIndex != -1)
                 {
+                    Rpc(nameof(NotifyTileDrawn), pid, true, landedIndex, topTile?.Id ?? "", topTile?.Value ?? 0, (int)(topTile?.Color ?? 0), wasDrag);
                     BroadcastGameStateInRoom(roomId);
                 }
             }
@@ -424,11 +457,15 @@ namespace OkieRummyGodot.Core.Networking
 
             GD.Print($"NetworkManager: Discard request from {senderId} (index {playerIndex}) for rack index {rackIndex}. Match Status: {match.Status}, Active: {match.CurrentPlayerIndex}, Phase: {match.CurrentPhase}");
 
+            if (rackIndex < 0 || rackIndex >= 26) return;
+
             if (match.Status == GameStatus.Playing && match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Discard)
             {
+                var tile = match.Players[playerIndex].Rack[rackIndex];
                 if (match.DiscardTile(pid, rackIndex))
                 {
                     GD.Print($"NetworkManager: Discard successful for {pid}. Broadcasting state.");
+                    Rpc(nameof(NotifyTileDiscarded), pid, rackIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0));
                     BroadcastGameStateInRoom(roomId);
                 }
                 else
@@ -436,15 +473,27 @@ namespace OkieRummyGodot.Core.Networking
                     GD.PrintErr($"NetworkManager: match.DiscardTile failed for {pid} at index {rackIndex}");
                 }
             }
-            else
-            {
-            }
+        }
+
+        [Rpc(MultiplayerApi.RpcMode.Authority)]
+        public void NotifyTileDrawn(string playerId, bool fromDiscard, int targetSlotIndex, string tileId, int value, int color, bool wasDrag)
+        {
+            if (Multiplayer.IsServer()) return;
+            EmitSignal(SignalName.TileDrawn, playerId, fromDiscard, targetSlotIndex, tileId, value, color, wasDrag);
+        }
+
+        [Rpc(MultiplayerApi.RpcMode.Authority)]
+        public void NotifyTileDiscarded(string playerId, int rackIndex, string tileId, int value, int color)
+        {
+            if (Multiplayer.IsServer()) return;
+            EmitSignal(SignalName.TileDiscarded, playerId, rackIndex, tileId, value, color);
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestMoveTile(int fromIndex, int toIndex)
         {
             if (!Multiplayer.IsServer()) return;
+            if (fromIndex < 0 || fromIndex >= 26 || toIndex < 0 || toIndex >= 26) return;
             
             int senderId = Multiplayer.GetRemoteSenderId();
             if (!_peerToRoom.ContainsKey(senderId)) return;
@@ -457,6 +506,31 @@ namespace OkieRummyGodot.Core.Networking
             player.MoveTile(fromIndex, toIndex);
             // No need to broadcast, client already did the move locally.
             // This just keeps server's record up to date for future syncs.
+        }
+
+        [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
+        public void RequestAddBot()
+        {
+            if (!Multiplayer.IsServer()) return;
+            
+            int senderId = Multiplayer.GetRemoteSenderId();
+            if (!_peerToRoom.ContainsKey(senderId)) return;
+
+            string roomId = _peerToRoom[senderId];
+            var match = _rooms[roomId];
+
+            // Only allow host (player index 0) to add bots
+            if (_peerToPlayer[senderId] != 0) return;
+
+            if (match.Players.Count < 4)
+            {
+                int botIndex = match.Players.Count;
+                var bot = new Core.Application.BotPlayer($"Bot_{botIndex}", $"Bot {botIndex}", "res://Assets/avatar.png", match);
+                match.AddPlayer(bot);
+                
+                GD.Print($"NetworkManager: Added Bot to Room {roomId}. Total players: {match.Players.Count}");
+                BroadcastGameStateInRoom(roomId);
+            }
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
@@ -493,6 +567,7 @@ namespace OkieRummyGodot.Core.Networking
         public void RequestCheckWinCondition(int rackIndex)
         {
             if (!Multiplayer.IsServer()) return;
+            if (rackIndex < 0 || rackIndex >= 26) return;
 
             int senderId = Multiplayer.GetRemoteSenderId();
             if (!_peerToRoom.ContainsKey(senderId)) return;
@@ -537,35 +612,50 @@ namespace OkieRummyGodot.Core.Networking
                 WinnerTiles = match.WinnerTiles
             };
 
-            // Order discards
-            foreach (var p in match.Players)
-            {
-                if (match.PlayerDiscardPiles.ContainsKey(p.Id))
-                {
-                    boardState.Discards.Add(match.PlayerDiscardPiles[p.Id]);
-                }
-                else
-                {
-                    GD.PrintErr($"NetworkManager: Player {p.Id} has no discard pile in room {roomId}. Using empty list.");
-                    boardState.Discards.Add(new List<Tile>());
-                }
-                boardState.PlayerNames.Add(p.Name);
-            }
-
-            string jsonBoard = System.Text.Json.JsonSerializer.Serialize(boardState);
-            
-            // Collect peers in this room
             foreach (var mapping in _peerToRoom)
             {
                 if (mapping.Value == roomId)
                 {
-                    RpcId(mapping.Key, nameof(SyncBoardState), jsonBoard);
+                    int recipientPeerId = mapping.Key;
+                    int recipientPlayerIndex = _peerToPlayer[recipientPeerId];
+
+                    // Security: Obfuscate opponent discard piles (only top card visible)
+                    var perPeerDiscards = new List<List<Tile>>();
+                    for (int i = 0; i < match.Players.Count; i++)
+                    {
+                        var pOwner = match.Players[i];
+                        var originalPile = match.PlayerDiscardPiles.ContainsKey(pOwner.Id) ? match.PlayerDiscardPiles[pOwner.Id] : new List<Tile>();
+                        
+                        if (i == recipientPlayerIndex)
+                        {
+                            perPeerDiscards.Add(new List<Tile>(originalPile)); // Owner sees all
+                        }
+                        else
+                        {
+                            var topOnly = new List<Tile>();
+                            if (originalPile.Count > 0) topOnly.Add(originalPile[^1]); // Others see only top
+                            perPeerDiscards.Add(topOnly);
+                        }
+                    }
+                    boardState.Discards = perPeerDiscards;
+
+                    string jsonBoard = System.Text.Json.JsonSerializer.Serialize(boardState);
+                    RpcId(recipientPeerId, nameof(SyncBoardState), jsonBoard);
                     
                     // 2. Send private rack
-                    int playerIndex = _peerToPlayer[mapping.Key];
+                    int playerIndex = _peerToPlayer[recipientPeerId];
                     var player = match.Players[playerIndex];
-                    string jsonRack = System.Text.Json.JsonSerializer.Serialize(new RackSyncData { Slots = new List<Tile>(player.Rack) });
-                    RpcId(mapping.Key, nameof(SyncPrivateRack), jsonRack);
+                    
+                    var rackSync = new RackSyncData { Slots = new List<Tile>(player.Rack) };
+                    
+                    // Security: Only reveal the next tile if it's the recipient's turn and they are in the draw phase
+                    if (match.CurrentPlayerIndex == playerIndex && match.CurrentPhase == TurnPhase.Draw)
+                    {
+                        rackSync.NextDeckTile = match.PeekDeck();
+                    }
+
+                    string jsonRack = System.Text.Json.JsonSerializer.Serialize(rackSync);
+                    RpcId(recipientPeerId, nameof(SyncPrivateRack), jsonRack);
                 }
             }
         }
@@ -585,6 +675,21 @@ namespace OkieRummyGodot.Core.Networking
         private string GetPlayerIdFromIndex(int index)
         {
             return $"p{index}";
+        }
+
+        private bool IsThrottled(int peerId, int cooldownMs = 1000)
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (_lastRpcTime.TryGetValue(peerId, out long lastTime))
+            {
+                if (now - lastTime < cooldownMs)
+                {
+                    GD.Print($"NetworkManager: Throttling peer {peerId} (Room RPC)");
+                    return true;
+                }
+            }
+            _lastRpcTime[peerId] = now;
+            return false;
         }
     }
 }

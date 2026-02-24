@@ -9,6 +9,7 @@ namespace OkieRummyGodot.Core.Application
     public static class PersistenceManager
     {
         private static readonly string BaseDir = "user://matches";
+        private static readonly string FriendsPath = "user://friends.json";
 
         static PersistenceManager()
         {
@@ -63,6 +64,36 @@ namespace OkieRummyGodot.Core.Application
                 }
             }
             return ids;
+        }
+
+        public static void SaveFriends(List<Domain.Friend> friends)
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(friends, new JsonSerializerOptions { WriteIndented = true });
+                using var file = Godot.FileAccess.Open(FriendsPath, Godot.FileAccess.ModeFlags.Write);
+                file?.StoreString(json);
+            }
+            catch (Exception e)
+            {
+                GD.PrintErr($"PersistenceManager: Error saving friends: {e.Message}");
+            }
+        }
+
+        public static List<Domain.Friend> LoadFriends()
+        {
+            if (!Godot.FileAccess.FileExists(FriendsPath)) return new List<Domain.Friend>();
+
+            try
+            {
+                using var file = Godot.FileAccess.Open(FriendsPath, Godot.FileAccess.ModeFlags.Read);
+                string json = file?.GetAsText();
+                return JsonSerializer.Deserialize<List<Domain.Friend>>(json) ?? new List<Domain.Friend>();
+            }
+            catch
+            {
+                return new List<Domain.Friend>();
+            }
         }
     }
 }

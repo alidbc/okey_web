@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="OkieRummyGodot"
-run/main_scene="res://UI/Scenes/Lobby.tscn"
+run/main_scene="res://UI/Scenes/Login.tscn"
 config/features=PackedStringArray("4.5", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 NetworkManager="*res://UI/Scenes/NetworkManager.tscn"
 ServerManager="*res://Server/ServerManager.tscn"
+AccountManager="*res://UI/Scenes/AccountManager.tscn"
 
 [display]
 

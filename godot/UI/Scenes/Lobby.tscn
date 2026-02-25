@@ -1,11 +1,13 @@
-[gd_scene load_steps=3 format=3 uid="uid://b25r1nidj8bs7"]
+[gd_scene load_steps=4 format=3 uid="uid://b25r1nidj8bs7"]
 
 [ext_resource type="Script" path="res://UI/Scripts/LobbyUI.cs" id="1_lobby"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
 bg_color = Color(0.0431373, 0.0901961, 0.0823529, 1)
 
-[node name="Lobby" type="Control" node_paths=PackedStringArray("RoomCodeInput", "StatusLabel", "HostButton", "JoinButton", "OfflineButton", "BrowseButton", "RoomListContainer", "FriendsListContainer", "AddFriendInput", "AddFriendButton")]
+[sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
+
+[node name="Lobby" type="Control" node_paths=PackedStringArray("RoomCodeInput", "StatusLabel", "HostButton", "JoinButton", "OfflineButton", "BrowseButton", "RoomListContainer", "FriendsListContainer", "AddFriendInput", "AddFriendButton", "FriendsTab", "RequestsTab", "RequestsListContainer", "RequestsScrollContainer", "FriendsScrollContainer", "SettingsButton")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -23,6 +25,12 @@ RoomListContainer = NodePath("MarginContainer/MainLayout/RoomManagement/VBoxCont
 FriendsListContainer = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/ScrollContainer/FriendsListContainer")
 AddFriendInput = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox/FriendNameInput")
 AddFriendButton = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox/AddButton")
+FriendsTab = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/TabButtons/FriendsTab")
+RequestsTab = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/TabButtons/RequestsTab")
+RequestsListContainer = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/RequestsScrollContainer/RequestsListContainer")
+RequestsScrollContainer = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/RequestsScrollContainer")
+FriendsScrollContainer = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/ScrollContainer")
+SettingsButton = NodePath("MarginContainer/MainLayout/FriendsPanel/VBoxContainer/SettingsButton")
 
 [node name="Background" type="Panel" parent="."]
 layout_mode = 1
@@ -129,13 +137,32 @@ layout_mode = 2
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainLayout/FriendsPanel"]
 layout_mode = 2
-theme_override_constants/separation = 15
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "FRIENDS"
+text = "SOCIAL"
 horizontal_alignment = 1
+
+[node name="TabButtons" type="HBoxContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="FriendsTab" type="Button" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/TabButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Friends"
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ButtonGroup_tabs")
+
+[node name="RequestsTab" type="Button" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/TabButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Requests"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_tabs")
 
 [node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
 layout_mode = 2
@@ -145,14 +172,28 @@ size_flags_vertical = 3
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="RequestsScrollContainer" type="ScrollContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RequestsListContainer" type="VBoxContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/RequestsScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="AddFriendBox" type="HBoxContainer" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
 layout_mode = 2
 
 [node name="FriendNameInput" type="LineEdit" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Add name..."
+placeholder_text = "Search player..."
 
 [node name="AddButton" type="Button" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer/AddFriendBox"]
 layout_mode = 2
 text = "+"
+
+[node name="SettingsButton" type="Button" parent="MarginContainer/MainLayout/FriendsPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+text = "Privacy Settings"

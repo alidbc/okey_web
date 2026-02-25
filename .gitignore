@@ -29,3 +29,7 @@ godot/exports/
 godot/*.csproj
 godot/*.sln
 godot/android/build/
+
+# Supabase
+supabase/.env
+supabase/db_data/

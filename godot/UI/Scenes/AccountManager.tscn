@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://account_manager_scene"]
+
+[ext_resource type="Script" path="res://Core/Networking/AccountManager.cs" id="1_script"]
+
+[node name="AccountManager" type="Node"]
+script = ExtResource("1_script")

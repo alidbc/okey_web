@@ -21,14 +21,39 @@ public partial class AccountManager : Node
     public string AvatarUrl { get; private set; }
     public string AccountType { get; private set; }
 
-    // Configure these before calling Initialize()
-    private const string SUPABASE_URL = "http://localhost:8000";
-    private const string SUPABASE_ANON_KEY = "your-anon-key-here";
+    // Loaded from res://supabase_config.json at runtime
+    private string _supabaseUrl;
+    private string _supabaseAnonKey;
 
     public override void _Ready()
     {
-        Supabase = new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        LoadConfig();
+        Supabase = new SupabaseClient(_supabaseUrl, _supabaseAnonKey);
         Supabase.OnAuthStateChanged += OnAuthStateChanged;
+    }
+
+    private void LoadConfig()
+    {
+        _supabaseUrl = "http://localhost:8000";
+        _supabaseAnonKey = "";
+
+        var path = "res://supabase_config.json";
+        if (FileAccess.FileExists(path))
+        {
+            using var file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
+            var json = file.GetAsText();
+            var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("supabase_url", out var url))
+                _supabaseUrl = url.GetString();
+            if (root.TryGetProperty("anon_key", out var key))
+                _supabaseAnonKey = key.GetString();
+            GD.Print($"AccountManager: Config loaded — {_supabaseUrl}");
+        }
+        else
+        {
+            GD.PrintErr("AccountManager: supabase_config.json not found, using defaults");
+        }
     }
 
     /// <summary>

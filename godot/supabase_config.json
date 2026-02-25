@@ -1,0 +1,4 @@
+{
+    "supabase_url": "http://localhost:8000",
+    "anon_key": "eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3MDAwMDAwMDAsICJleHAiOiAyMDAwMDAwMDAwfQ.k9C97QwMvyt46tvgLjxT665b7nh0afTzHySvMN9Bf-s"
+}

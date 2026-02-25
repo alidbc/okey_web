@@ -102,6 +102,43 @@ public partial class AccountManager : Node
         }
     }
 
+    /// <summary>
+    /// Validate a display name client-side before sending to server.
+    /// Server enforces the same rules via SQL trigger.
+    /// </summary>
+    public static (bool valid, string error) ValidateDisplayName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return (false, "Name cannot be empty");
+        if (name.Length < 2 || name.Length > 24)
+            return (false, "Name must be 2-24 characters");
+        if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^[a-zA-Z0-9_\- ]+$"))
+            return (false, "Only letters, numbers, spaces, hyphens, and underscores allowed");
+
+        string lower = name.ToLower();
+        string[] blocked = { "fuck", "shit", "bitch", "dick", "cock", "cunt", "nigger", "nigga",
+            "faggot", "retard", "whore", "slut", "nazi", "hitler", "rape", "terrorist" };
+        foreach (var word in blocked)
+            if (lower.Contains(word))
+                return (false, "Name contains inappropriate language");
+
+        return (true, null);
+    }
+
+    /// <summary>
+    /// Delete the user's account and all associated data (GDPR compliance).
+    /// </summary>
+    public async Task<bool> DeleteAccount()
+    {
+        if (!Supabase.IsAuthenticated) return false;
+
+        GD.Print("AccountManager: Deleting account...");
+        var result = await Supabase.Rpc("delete_my_account");
+        SignOut();
+        GD.Print("AccountManager: Account deleted");
+        return true;
+    }
+
     public void SignOut()
     {
         Supabase.SignOut();

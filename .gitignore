@@ -33,3 +33,6 @@ godot/android/build/
 # Supabase
 supabase/.env
 supabase/db_data/
+
+# Legacy React App
+legacy/

@@ -102,11 +102,11 @@ public class FriendService
 
         // Friends where I'm the requester
         var sent = await _supabase.Get("friendships",
-            $"requester_id=eq.{_supabase.UserId}&status=eq.accepted&select=id,recipient_id,player_profiles!friendships_recipient_id_fkey(display_name,avatar_url,level),player_presence!friendships_recipient_id_fkey(status,last_seen)");
+            $"requester_id=eq.{_supabase.UserId}&status=eq.accepted&select=id,recipient_id,player_profiles!friendships_recipient_id_fkey(display_name,avatar_url,level,player_presence(status,last_seen,invite_response,invite_from_id))");
 
         // Friends where I'm the recipient
         var received = await _supabase.Get("friendships",
-            $"recipient_id=eq.{_supabase.UserId}&status=eq.accepted&select=id,requester_id,player_profiles!friendships_requester_id_fkey(display_name,avatar_url,level),player_presence!friendships_requester_id_fkey(status,last_seen)");
+            $"recipient_id=eq.{_supabase.UserId}&status=eq.accepted&select=id,requester_id,player_profiles!friendships_requester_id_fkey(display_name,avatar_url,level,player_presence(status,last_seen,invite_response,invite_from_id))");
 
         ParseFriends(sent, friends, "recipient_id");
         ParseFriends(received, friends, "requester_id");
@@ -146,7 +146,7 @@ public class FriendService
     {
         var results = new List<PlayerSearchResult>();
         var data = await _supabase.Get("player_profiles",
-            $"display_name=ilike.*{nameQuery}*&account_type=eq.idp&select=id,display_name,avatar_url,level&limit=10");
+            $"display_name=ilike.*{nameQuery}*&select=id,display_name,avatar_url,level&limit=10");
 
         if (data != null && data.Value.ValueKind == JsonValueKind.Array)
         {
@@ -170,16 +170,27 @@ public class FriendService
         if (data == null || data.Value.ValueKind != JsonValueKind.Array) return;
         foreach (var item in data.Value.EnumerateArray())
         {
+            var profile = item.GetProperty("player_profiles");
             list.Add(new FriendInfo {
                 FriendshipId = item.GetProperty("id").GetString(),
                 PlayerId = item.GetProperty(idField).GetString(),
-                DisplayName = GetNestedString(item, "player_profiles", "display_name") ?? "Unknown",
-                AvatarUrl = GetNestedString(item, "player_profiles", "avatar_url") ?? "",
-                Level = GetNestedInt(item, "player_profiles", "level"),
-                OnlineStatus = GetNestedString(item, "player_presence", "status") ?? "offline",
-                LastSeen = GetNestedString(item, "player_presence", "last_seen")
+                DisplayName = profile.GetProperty("display_name").GetString() ?? "Unknown",
+                AvatarUrl = profile.GetProperty("avatar_url").GetString() ?? "",
+                Level = profile.GetProperty("level").GetInt32(),
+                OnlineStatus = GetDoubleNestedString(profile, "player_presence", "status") ?? "offline",
+                LastSeen = GetDoubleNestedString(profile, "player_presence", "last_seen"),
+                InviteResponse = GetDoubleNestedString(profile, "player_presence", "invite_response"),
+                InviteFromId = GetDoubleNestedString(profile, "player_presence", "invite_from_id")
             });
         }
+    }
+
+    private string GetDoubleNestedString(JsonElement parent, string obj, string prop)
+    {
+        if (parent.TryGetProperty(obj, out var nested) && nested.ValueKind == JsonValueKind.Object
+            && nested.TryGetProperty(prop, out var val))
+            return val.GetString();
+        return null;
     }
 
     private string GetNestedString(JsonElement parent, string obj, string prop)
@@ -209,6 +220,8 @@ public class FriendInfo
     public int Level { get; set; }
     public string OnlineStatus { get; set; }
     public string LastSeen { get; set; }
+    public string InviteResponse { get; set; }
+    public string InviteFromId { get; set; }
 }
 
 public class FriendRequest

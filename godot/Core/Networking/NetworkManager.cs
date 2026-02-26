@@ -61,6 +61,8 @@ namespace OkieRummyGodot.Core.Networking
                 _lastStatus = currentStatus;
             }
 
+            // Guard: IsServer() throws when peer is not fully connected
+            if (currentStatus != MultiplayerPeer.ConnectionStatus.Connected) return;
             if (!Multiplayer.IsServer()) return;
 
             _tickTimer += delta;
@@ -133,12 +135,12 @@ namespace OkieRummyGodot.Core.Networking
             }
         }
 
-        public void CreateRoomOnServer() => RpcId(1, nameof(RequestCreateRoom));
-        public void JoinRoomOnServer(string code, string reconnectToken = "") => RpcId(1, nameof(RequestJoinRoom), code, reconnectToken);
+        public void CreateRoomOnServer(string name = "", string avatar = "") => RpcId(1, nameof(RequestCreateRoom), name, avatar);
+        public void JoinRoomOnServer(string code, string reconnectToken = "", string name = "", string avatar = "") => RpcId(1, nameof(RequestJoinRoom), code, reconnectToken, name, avatar);
         public void RefreshRoomList() => RpcId(1, nameof(RequestPublicRooms));
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
-        public void RequestCreateRoom()
+        public void RequestCreateRoom(string name = "", string avatar = "")
         {
             if (!Multiplayer.IsServer()) return;
             int peerId = Multiplayer.GetRemoteSenderId();
@@ -156,11 +158,11 @@ namespace OkieRummyGodot.Core.Networking
 
             _roomManager.CreateRoom(peerId, code);
             GD.Print($"NetworkManager: Created room {code} for peer {peerId}");
-            JoinRoomLogic(peerId, code);
+            JoinRoomLogic(peerId, code, name, avatar);
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
-        public void RequestJoinRoom(string code, string reconnectToken = "")
+        public void RequestJoinRoom(string code, string reconnectToken = "", string name = "", string avatar = "")
         {
             if (!Multiplayer.IsServer()) return;
             int peerId = Multiplayer.GetRemoteSenderId();
@@ -181,12 +183,12 @@ namespace OkieRummyGodot.Core.Networking
                 }
             }
 
-            JoinRoomLogic(peerId, code);
+            JoinRoomLogic(peerId, code, name, avatar);
         }
 
-        private void JoinRoomLogic(int peerId, string code)
+        private void JoinRoomLogic(int peerId, string code, string name = "", string avatar = "")
         {
-            if (_roomManager.JoinRoom(peerId, code, out int playerIndex, out string token, out string error))
+            if (_roomManager.JoinRoom(peerId, code, name, avatar, out int playerIndex, out string token, out string error))
             {
                 RpcId(peerId, nameof(ConfirmRoomJoined), code, playerIndex);
                 RpcId(peerId, nameof(ReceiveReconnectToken), token);
@@ -200,12 +202,16 @@ namespace OkieRummyGodot.Core.Networking
         }
 
         [Rpc(MultiplayerApi.RpcMode.Authority)]
-        public void ConfirmRoomJoined(string code, int playerIndex)
+        public async void ConfirmRoomJoined(string code, int playerIndex)
         {
             if (Multiplayer.IsServer()) return;
             LocalPlayerIndex = playerIndex;
             GD.Print($"NetworkManager: Successfully joined room {code} as player {playerIndex}");
             EmitSignal(SignalName.RoomJoined, code, playerIndex);
+
+            // Delay scene transition to give LobbyUI's async RPCs time to flush
+            await ToSignal(GetTree().CreateTimer(1.5f), Godot.SceneTreeTimer.SignalName.Timeout);
+
             GetTree().ChangeSceneToFile(MainGameScenePath);
         }
 
@@ -229,6 +235,10 @@ namespace OkieRummyGodot.Core.Networking
             if (Multiplayer.IsServer()) return;
             EmitSignal(SignalName.RoomError, message);
         }
+
+        // ================================================================
+        // INVITE RELAY
+
 
         public void ConnectToServer(string ip, int port)
         {
@@ -467,6 +477,7 @@ namespace OkieRummyGodot.Core.Networking
                 Phase = match?.CurrentPhase ?? TurnPhase.Draw,
                 Status = !room.IsGaming ? "Lobby" : (match.Status == GameStatus.Victory ? "Victory" : "Active"),
                 PlayerNames = activePlayers.Select(p => p.Name).ToList(),
+                PlayerAvatars = activePlayers.Select(p => p.AvatarUrl).ToList(),
                 TurnStartTimestamp = match?.TurnStartTimestamp ?? 0,
                 TurnDuration = match?.TurnDuration ?? 30,
                 IsBot = activePlayers.Select(p => p.IsBot).ToList(),

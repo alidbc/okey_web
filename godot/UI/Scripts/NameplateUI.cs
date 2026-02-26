@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Threading.Tasks;
 
 namespace OkieRummyGodot.UI.Scripts
 {
@@ -18,6 +19,8 @@ namespace OkieRummyGodot.UI.Scripts
         
         private StyleBoxFlat _inactiveStyle;
         private StyleBoxFlat _activeStyle;
+        private TextureRect _avatarRect;
+        private Label _nameLabel;
 
         public override void _Ready()
         {
@@ -33,6 +36,73 @@ namespace OkieRummyGodot.UI.Scripts
             _timerRect = GetNodeOrNull<ColorRect>("HBoxContainer/AvatarContainer/TurnTimer");
             _timerMaterial = _timerRect?.Material as ShaderMaterial;
             _timerRect?.Hide();
+
+            _avatarRect = GetNodeOrNull<TextureRect>("HBoxContainer/AvatarContainer/AvatarMask/AvatarImage");
+            _nameLabel = GetNodeOrNull<Label>("HBoxContainer/VBoxContainer/Name");
+        }
+
+        public void SetDisplayName(string name)
+        {
+            if (_nameLabel != null) _nameLabel.Text = name;
+        }
+
+        public async void SetAvatar(string url)
+        {
+            if (string.IsNullOrEmpty(url) || _avatarRect == null) return;
+            
+            // Check if it's a web URL
+            if (url.StartsWith("http"))
+            {
+                await LoadAvatarFromUrl(url);
+            }
+            else if (FileAccess.FileExists(url))
+            {
+                _avatarRect.Texture = GD.Load<Texture2D>(url);
+            }
+        }
+
+        private async Task LoadAvatarFromUrl(string url)
+        {
+            GD.Print($"NameplateUI: Downloading avatar from {url}");
+            using var http = new HttpRequest();
+            AddChild(http);
+            var error = http.Request(url);
+            if (error != Error.Ok)
+            {
+                GD.PrintErr($"NameplateUI: HttpRequest failed: {error}");
+                return;
+            }
+
+            var result = await ToSignal(http, "request_completed");
+            int responseCode = (int)result[1];
+            var body = result[3].AsByteArray();
+            
+            GD.Print($"NameplateUI: Received response {responseCode}, body size {body.Length} bytes");
+
+            if (responseCode != 200 || body.Length == 0)
+            {
+                GD.PrintErr("NameplateUI: Failed to download avatar or empty body");
+                http.QueueFree();
+                return;
+            }
+
+            var image = new Image();
+            // Try PNG first, then JPG
+            var imgError = image.LoadPngFromBuffer(body);
+            if (imgError != Error.Ok) imgError = image.LoadJpgFromBuffer(body);
+            if (imgError != Error.Ok) imgError = image.LoadWebpFromBuffer(body);
+            
+            if (imgError == Error.Ok)
+            {
+                _avatarRect.Texture = ImageTexture.CreateFromImage(image);
+                GD.Print("NameplateUI: Avatar loaded successfully from buffer");
+            }
+            else
+            {
+                GD.PrintErr($"NameplateUI: Failed to parse image buffer: {imgError}");
+            }
+            
+            http.QueueFree();
         }
 
         public override void _Process(double delta)

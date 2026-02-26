@@ -33,7 +33,16 @@ namespace OkieRummyGodot.Core.Application
 
         public int GetPlayerIndex(int peerId) => _peerToPlayerIndex.TryGetValue(peerId, out var index) ? index : -1;
 
-        public bool JoinRoom(int peerId, string code, out int playerIndex, out string token, out string errorMessage)
+        public string GetPlayerName(int peerId)
+        {
+            var room = GetRoomByPeer(peerId);
+            if (room == null) return "Unknown";
+            int idx = GetPlayerIndex(peerId);
+            var player = room.Players.FirstOrDefault(p => p.SeatIndex == idx);
+            return player?.Name ?? "Unknown";
+        }
+
+        public bool JoinRoom(int peerId, string code, string name, string avatar, out int playerIndex, out string token, out string errorMessage)
         {
             playerIndex = -1;
             token = "";
@@ -62,7 +71,11 @@ namespace OkieRummyGodot.Core.Application
             token = Guid.NewGuid().ToString();
             string playerId = $"p{playerIndex}";
             
-            var player = new Player(playerId, peerId.ToString(), "")
+            // Use provided name/avatar or fallback
+            string finalName = !string.IsNullOrWhiteSpace(name) ? name : $"Player {playerIndex + 1}";
+            string finalAvatar = !string.IsNullOrWhiteSpace(avatar) ? avatar : "res://Assets/avatar.png";
+
+            var player = new Player(playerId, finalName, finalAvatar)
             {
                 SeatIndex = playerIndex,
                 ReconnectToken = token
@@ -74,7 +87,7 @@ namespace OkieRummyGodot.Core.Application
             _tokenToSession[token] = (code, playerIndex);
             _sessionToPeer[(code, playerIndex)] = peerId;
 
-            GD.Print($"ServerRoomManager: Peer {peerId} joined room {code} as Player {playerIndex}");
+            GD.Print($"ServerRoomManager: Peer {peerId} ({finalName}) joined room {code} as Player {playerIndex}");
             return true;
         }
 

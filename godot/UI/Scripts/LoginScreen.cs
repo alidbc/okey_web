@@ -25,7 +25,9 @@ public partial class LoginScreen : Control
 
     public override void _Ready()
     {
+        GD.Print("LoginScreen: _Ready started");
         _accountManager = GetNodeOrNull<AccountManager>("/root/AccountManager");
+        GD.Print($"LoginScreen: AccountManager found: {_accountManager != null}");
 
         // Wire buttons
         GoogleButton?.Connect("pressed", Callable.From(() => OnIdpPressed("google")));
@@ -34,17 +36,8 @@ public partial class LoginScreen : Control
         TwitchButton?.Connect("pressed", Callable.From(() => OnIdpPressed("twitch")));
         GuestButton?.Connect("pressed", Callable.From(OnGuestPressed));
 
-        if (VersionLabel != null)
-            VersionLabel.Text = $"v{ProjectSettings.GetSetting("application/config/version", "0.1.0")}";
-
-        // If already signed in (restored session), skip login
-        if (_accountManager?.Supabase?.IsAuthenticated == true)
-        {
-            GD.Print("LoginScreen: Session restored, skipping to lobby");
-            GoToLobby();
-            return;
-        }
-
+        FilterIdpButtons();
+        ApplyIdpLogos();
         ApplyTheme();
 
         // Auto check for stored session
@@ -54,17 +47,18 @@ public partial class LoginScreen : Control
     private async void TryAutoLogin()
     {
         if (_accountManager == null) return;
-        UpdateStatus("Checking session...");
+        UpdateStatus("Authenticating...");
         bool ok = await _accountManager.Supabase.RefreshSession();
         if (ok)
         {
-            UpdateStatus("Welcome back!");
-            await Task.Delay(500);
+            string name = !string.IsNullOrEmpty(_accountManager.DisplayName) ? _accountManager.DisplayName : "Player";
+            UpdateStatus($"Welcome back, {name}!");
+            await Task.Delay(1500); 
             GoToLobby();
         }
         else
         {
-            UpdateStatus("Sign in to play");
+            UpdateStatus("Ready to sign in.");
         }
     }
 
@@ -82,34 +76,29 @@ public partial class LoginScreen : Control
         UpdateStatus($"Complete sign-in in your browser...");
         SetButtonsDisabled(true);
 
-        // Poll for session completion (user finishes OAuth in browser)
-        _ = PollForOAuthCompletion();
+        // Wait for the browser redirect to hit our local listener
+        _ = HandleOAuthCallback();
     }
 
-    private async Task PollForOAuthCompletion()
+    private async Task HandleOAuthCallback()
     {
-        for (int i = 0; i < 60; i++) // Poll for up to 2 minutes
+        GD.Print("LoginScreen: Waiting for OAuth callback...");
+        bool ok = await _accountManager.Supabase.ListenForOAuthCallback();
+        GD.Print($"LoginScreen: OAuth callback result: {ok}");
+        
+        if (ok)
         {
-            await Task.Delay(2000);
-            if (_accountManager?.Supabase?.IsAuthenticated == true)
-            {
-                UpdateStatus("Signed in!");
-                await Task.Delay(300);
-                GoToLobby();
-                return;
-            }
-            // Try refreshing session in case callback wrote tokens
-            bool ok = await _accountManager.Supabase.RefreshSession();
-            if (ok)
-            {
-                UpdateStatus("Signed in!");
-                await Task.Delay(300);
-                GoToLobby();
-                return;
-            }
+            UpdateStatus("Signed in!");
+            GD.Print("LoginScreen: Sign-in successful, delaying navigation...");
+            await Task.Delay(500);
+            GoToLobby();
         }
-        UpdateStatus("Sign-in timed out. Try again.");
-        SetButtonsDisabled(false);
+        else
+        {
+            GD.PrintErr("LoginScreen: OAuth callback failed or timed out.");
+            UpdateStatus("Sign-in failed or timed out.");
+            SetButtonsDisabled(false);
+        }
     }
 
     private async void OnGuestPressed()
@@ -140,7 +129,17 @@ public partial class LoginScreen : Control
 
     private void GoToLobby()
     {
-        GetTree().ChangeSceneToFile(LOBBY_PATH);
+        GD.Print($"LoginScreen: Navigating to Lobby ({LOBBY_PATH})...");
+        CallDeferred(nameof(DeferredGoToLobby));
+    }
+
+    private void DeferredGoToLobby()
+    {
+        var error = GetTree().ChangeSceneToFile(LOBBY_PATH);
+        if (error != Error.Ok)
+        {
+            GD.PrintErr($"LoginScreen: Failed to change scene! Error: {error}");
+        }
     }
 
     private void UpdateStatus(string msg)
@@ -155,6 +154,50 @@ public partial class LoginScreen : Control
         if (DiscordButton != null) DiscordButton.Disabled = disabled;
         if (TwitchButton != null) TwitchButton.Disabled = disabled;
         if (GuestButton != null) GuestButton.Disabled = disabled;
+    }
+
+    private void FilterIdpButtons()
+    {
+        if (_accountManager == null) 
+        {
+            GD.PrintErr("LoginScreen: Cannot filter buttons - AccountManager is null");
+            return;
+        }
+        
+        var enabled = _accountManager.EnabledProviders;
+        GD.Print($"LoginScreen: Filtering buttons. Enabled providers: {string.Join(",", enabled)}");
+        
+        // Hide by default
+        if (GoogleButton != null) { GoogleButton.Visible = enabled.Contains("google"); GD.Print($"LoginScreen: GoogleBtn visibility -> {GoogleButton.Visible}"); }
+        if (FacebookButton != null) { FacebookButton.Visible = enabled.Contains("facebook"); GD.Print($"LoginScreen: FacebookBtn visibility -> {FacebookButton.Visible}"); }
+        if (DiscordButton != null) { DiscordButton.Visible = enabled.Contains("discord"); GD.Print($"LoginScreen: DiscordBtn visibility -> {DiscordButton.Visible}"); }
+        if (TwitchButton != null) { TwitchButton.Visible = enabled.Contains("twitch"); GD.Print($"LoginScreen: TwitchBtn visibility -> {TwitchButton.Visible}"); }
+    }
+
+    private void ApplyIdpLogos()
+    {
+        // Apply Google Logo
+        string googlePath = "res://Assets/google_logo.png";
+        GD.Print($"LoginScreen: Applying logos. Path: {googlePath}, Exists: {FileAccess.FileExists(googlePath)}");
+        if (GoogleButton != null && FileAccess.FileExists(googlePath))
+        {
+            try
+            {
+                string globalPath = ProjectSettings.GlobalizePath(googlePath);
+                GD.Print($"LoginScreen: Loading logo from global path: {globalPath}");
+                var image = Image.LoadFromFile(globalPath);
+                if (image != null)
+                {
+                    GoogleButton.Icon = ImageTexture.CreateFromImage(image);
+                    GoogleButton.ExpandIcon = true;
+                    GD.Print("LoginScreen: Google icon applied successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"LoginScreen: Failed to load Google logo: {ex.Message}");
+            }
+        }
     }
 
     private void ApplyTheme()

@@ -182,6 +182,22 @@ public partial class TileUI : TextureRect
         return this; // The Variant data passed into _DropData (sending the dragging node itself)
     }
 
+    /// <summary>
+    /// Smoothly animates the tile to a global position.
+    /// </summary>
+    public Tween AnimateTo(Vector2 targetGlobalPos, float duration = 0.4f, float delay = 0f)
+    {
+        var tween = CreateTween();
+        if (delay > 0) tween.SetParallel(false).TweenInterval(delay);
+        
+        tween.SetParallel(true);
+        tween.TweenProperty(this, "global_position", targetGlobalPos, duration)
+             .SetTrans(Tween.TransitionType.Quad)
+             .SetEase(Tween.EaseType.Out);
+             
+        return tween;
+    }
+
     public override void _Notification(int what)
     {
         // Restore tile visibility if the drag successfully drops or gets cancelled

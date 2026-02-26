@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Threading.Tasks;
 using OkieRummyGodot.Core.Domain;
 
 namespace OkieRummyGodot.UI.Scripts;
@@ -8,6 +9,7 @@ public partial class OpponentUI : HBoxContainer
 {
     private Label _nameLabel;
     private Label _levelLabel;
+    private TextureRect _avatarRect;
     private PanelContainer _nameplate;
     public bool IsValidDiscardTarget { get; set; } = false;
 
@@ -25,6 +27,7 @@ public partial class OpponentUI : HBoxContainer
     {
         _nameLabel = GetNodeOrNull<Label>("Nameplate/HBoxContainer/VBoxContainer/Name");
         _levelLabel = GetNodeOrNull<Label>("Nameplate/HBoxContainer/VBoxContainer/Level");
+        _avatarRect = GetNodeOrNull<TextureRect>("Nameplate/HBoxContainer/AvatarContainer/AvatarMask/AvatarImage");
         _nameplate = GetNodeOrNull<PanelContainer>("Nameplate");
 
         _inactiveStyle = (StyleBoxFlat)_nameplate?.GetThemeStylebox("panel");
@@ -70,9 +73,73 @@ public partial class OpponentUI : HBoxContainer
         }
 
         Visible = true;
-        if (_nameLabel != null) _nameLabel.Text = playerData.Name;
+        SetDisplayName(playerData.Name);
+        SetAvatar(playerData.AvatarUrl);
         // Mocking level parsing, actual app had it typed
         if (_levelLabel != null) _levelLabel.Text = "Level 42"; 
+    }
+
+    public void SetDisplayName(string name)
+    {
+        if (_nameLabel != null) _nameLabel.Text = name;
+    }
+
+    public async void SetAvatar(string url)
+    {
+        if (string.IsNullOrEmpty(url) || _avatarRect == null) return;
+        
+        if (url.StartsWith("http"))
+        {
+            await LoadAvatarFromUrl(url);
+        }
+        else if (FileAccess.FileExists(url))
+        {
+            _avatarRect.Texture = GD.Load<Texture2D>(url);
+        }
+    }
+
+    private async Task LoadAvatarFromUrl(string url)
+    {
+        GD.Print($"OpponentUI: Downloading avatar from {url}");
+        using var http = new HttpRequest();
+        AddChild(http);
+        var error = http.Request(url);
+        if (error != Error.Ok)
+        {
+            GD.PrintErr($"OpponentUI: HttpRequest failed: {error}");
+            return;
+        }
+
+        var result = await ToSignal(http, "request_completed");
+        int responseCode = (int)result[1];
+        var body = result[3].AsByteArray();
+        
+        GD.Print($"OpponentUI: Received response {responseCode}, body size {body.Length} bytes");
+
+        if (responseCode != 200 || body.Length == 0)
+        {
+            GD.PrintErr("OpponentUI: Failed to download avatar or empty body");
+            http.QueueFree();
+            return;
+        }
+
+        var image = new Image();
+        // Try various formats
+        var imgError = image.LoadPngFromBuffer(body);
+        if (imgError != Error.Ok) imgError = image.LoadJpgFromBuffer(body);
+        if (imgError != Error.Ok) imgError = image.LoadWebpFromBuffer(body);
+        
+        if (imgError == Error.Ok)
+        {
+            _avatarRect.Texture = ImageTexture.CreateFromImage(image);
+            GD.Print("OpponentUI: Avatar loaded successfully");
+        }
+        else
+        {
+            GD.PrintErr($"OpponentUI: Failed to parse image buffer: {imgError}");
+        }
+        
+        http.QueueFree();
     }
 
     public Control GetDropSlotNode()

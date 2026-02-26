@@ -64,6 +64,12 @@ public partial class MainEngine : Control
         NetworkManager = GetNodeOrNull<Core.Networking.NetworkManager>("/root/NetworkManager");
         _boardCenter = GetNodeOrNull<BoardCenterUI>("CenterLayout/MiddleRow/BoardCenter");
         
+        var account = GetNodeOrNull<OkieRummyGodot.Core.Networking.AccountManager>("/root/AccountManager");
+        if (account != null)
+        {
+            account.Connect("ProfileLoaded", new Callable(this, nameof(OnProfileLoaded)));
+        }
+        
         // Initialize DZ Tiles
         DiscardZoneUI[] dzs = { DZ1, DZ2, DZ3, DZ4 };
         PackedScene tileScene = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn");
@@ -98,6 +104,15 @@ public partial class MainEngine : Control
                 _localActiveStyle.BorderColor = new Color(0.98f, 0.80f, 0.08f, 1f); // yellow-400
                 _localActiveStyle.ShadowColor = new Color(0.98f, 0.80f, 0.08f, 0.8f);
                 _localActiveStyle.ShadowSize = 15;
+            }
+
+            // If profile already loaded, update now
+            if (account != null && !string.IsNullOrEmpty(account.DisplayName))
+            {
+                GD.Print($"MainEngine: Profile already loaded, updating nameplate to {account.DisplayName}");
+                _localNameplate.SetDisplayName(account.DisplayName);
+                if (!string.IsNullOrEmpty(account.AvatarUrl))
+                    _localNameplate.SetAvatar(account.AvatarUrl);
             }
         }
         
@@ -241,7 +256,6 @@ public partial class MainEngine : Control
     private void InitializeMultiplayerUI()
     {
         if (NetworkManager == null || _matchManager == null) return;
-        int count = _matchManager.Players.Count;
         
         RightOpponent?.Initialize(_matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 1), true);
         TopOpponent?.Initialize(_matchManager.Players.Find(p => GetRelativeIndex(p.Id) == 2), false);
@@ -250,7 +264,12 @@ public partial class MainEngine : Control
         if (_localPlayer != null)
         {
             LocalRackUI?.Initialize(_localPlayer);
-            if (_localNameLabel != null) _localNameLabel.Text = _localPlayer.Name;
+            if (_localNameplate != null)
+            {
+                _localNameplate.SetDisplayName(_localPlayer.Name);
+                if (!string.IsNullOrEmpty(_localPlayer.AvatarUrl))
+                    _localNameplate.SetAvatar(_localPlayer.AvatarUrl);
+            }
         }
     }
 
@@ -261,8 +280,12 @@ public partial class MainEngine : Control
         _matchManager.OnTileDrawn += OnMatchTileDrawn;
         _matchManager.OnTileDiscarded += OnMatchTileDiscarded;
 
-        // Initialize Players
-        _localPlayer = new Player("local_user", "You", "avatar_url");
+        // Initialize Local Player with Auth session if available
+        var account = GetNodeOrNull<OkieRummyGodot.Core.Networking.AccountManager>("/root/AccountManager");
+        string localName = account?.DisplayName ?? "You";
+        string localAvatar = account?.AvatarUrl ?? "res://Assets/avatar.png";
+
+        _localPlayer = new Player("local_user", localName, localAvatar);
         _matchManager.AddPlayer(_localPlayer);
         
         var bot1 = new BotPlayer("bot_1", "Elena", "", _matchManager);
@@ -1162,29 +1185,33 @@ public partial class MainEngine : Control
 
     private void UpdateTurnTimers(int activePlayerIndex, long startTime, int duration)
     {
-        // First, stop all timers
-        _localNameplate?.StopTimer();
-        TopOpponent?.StopTimer();
-        LeftOpponent?.StopTimer();
-        RightOpponent?.StopTimer();
-
+        // First, stop all timers and reset active state
+        _localNameplate?.StopTimer(); _localNameplate?.SetActive(false);
+        TopOpponent?.StopTimer();    TopOpponent?.SetActive(false);
+        LeftOpponent?.StopTimer();   LeftOpponent?.SetActive(false);
+        RightOpponent?.StopTimer();  RightOpponent?.SetActive(false);
+        
         if (_matchManager.Status != GameStatus.Playing) return;
 
-        // Start timer for the active player
+        // Start timer and highlight for the active player
         int relIdx = GetRelativeIndex($"p{activePlayerIndex}");
         switch (relIdx)
         {
             case 0:
                 _localNameplate?.UpdateTimer(startTime, duration);
+                _localNameplate?.SetActive(true);
                 break;
             case 1:
                 RightOpponent?.UpdateTimer(startTime, duration);
+                RightOpponent?.SetActive(true);
                 break;
             case 2:
                 TopOpponent?.UpdateTimer(startTime, duration);
+                TopOpponent?.SetActive(true);
                 break;
             case 3:
                 LeftOpponent?.UpdateTimer(startTime, duration);
+                LeftOpponent?.SetActive(true);
                 break;
         }
     }
@@ -1227,36 +1254,42 @@ public partial class MainEngine : Control
                 _matchManager.Players.Clear();
                 _matchManager.PlayerDiscardPiles.Clear();
                 
-                for (int i = 0; i < data.Discards.Count; i++)
-                {
-                    string name = (data.PlayerNames != null && i < data.PlayerNames.Count) ? data.PlayerNames[i] : (i == NetworkManager.LocalPlayerIndex ? "You" : $"Player {i + 1}");
-                    var p = new Player($"p{i}", name, "");
-                    _matchManager.AddPlayer(p);
-                    if (i == NetworkManager.LocalPlayerIndex) _localPlayer = p;
-                }
-                InitializeMultiplayerUI();
-                ConnectDynamicUI(); // Re-connect signals for the new local player
+            for (int i = 0; i < data.Discards.Count; i++)
+            {
+                string name = (data.PlayerNames != null && i < data.PlayerNames.Count) ? data.PlayerNames[i] : (i == NetworkManager.LocalPlayerIndex ? "You" : $"Player {i + 1}");
+                string avatar = (data.PlayerAvatars != null && i < data.PlayerAvatars.Count) ? data.PlayerAvatars[i] : "";
+                var p = new Player($"p{i}", name, avatar);
+                _matchManager.AddPlayer(p);
+                if (i == NetworkManager.LocalPlayerIndex) _localPlayer = p;
             }
+            InitializeMultiplayerUI();
+            ConnectDynamicUI(); // Re-connect signals for the new local player
+        }
             else if (_localPlayer == null && NetworkManager.LocalPlayerIndex != -1 && NetworkManager.LocalPlayerIndex < _matchManager.Players.Count)
             {
                 _localPlayer = _matchManager.Players[NetworkManager.LocalPlayerIndex];
                 InitializeMultiplayerUI();
                 ConnectDynamicUI();
             }
-            else if (data.PlayerNames != null && data.PlayerNames.Count == _matchManager.Players.Count)
+        else if (data.PlayerNames != null && data.PlayerNames.Count == _matchManager.Players.Count)
+        {
+            // Update names/avatars if they changed
+            bool changed = false;
+            for (int i = 0; i < data.PlayerNames.Count; i++)
             {
-                // Update names if they changed (e.g. from "Player X" to peer ID)
-                bool changed = false;
-                for (int i = 0; i < data.PlayerNames.Count; i++)
+                if (_matchManager.Players[i].Name != data.PlayerNames[i])
                 {
-                    if (_matchManager.Players[i].Name != data.PlayerNames[i])
-                    {
-                        _matchManager.Players[i].Name = data.PlayerNames[i];
-                        changed = true;
-                    }
+                    _matchManager.Players[i].Name = data.PlayerNames[i];
+                    changed = true;
                 }
-                if (changed) InitializeMultiplayerUI();
+                if (data.PlayerAvatars != null && i < data.PlayerAvatars.Count && _matchManager.Players[i].AvatarUrl != data.PlayerAvatars[i])
+                {
+                    _matchManager.Players[i].AvatarUrl = data.PlayerAvatars[i];
+                    changed = true;
+                }
             }
+            if (changed) InitializeMultiplayerUI();
+        }
 
             // Update Turn Timers
             UpdateTurnTimers(data.ActivePlayer, data.TurnStartTimestamp, data.TurnDuration);
@@ -1463,5 +1496,22 @@ public partial class MainEngine : Control
         GD.Print("MainEngine: Leave confirmed. Resetting session...");
         NetworkManager?.Disconnect();
         GetTree().ChangeSceneToFile("res://UI/Scenes/Lobby.tscn");
+    }
+
+    private void OnProfileLoaded(string name, string avatarUrl, int level, int gamesPlayed, int gamesWon)
+    {
+        GD.Print($"MainEngine: Profile reactive update - {name}");
+        if (_localPlayer != null)
+        {
+            _localPlayer.Name = name;
+            _localPlayer.AvatarUrl = avatarUrl;
+        }
+        
+        if (_localNameplate != null)
+        {
+            _localNameplate.SetDisplayName(name);
+            if (!string.IsNullOrEmpty(avatarUrl))
+                _localNameplate.SetAvatar(avatarUrl);
+        }
     }
 }

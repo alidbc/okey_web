@@ -22,11 +22,11 @@ services:
           - /rest/v1/
     plugins:
       - name: cors
-      - name: key-auth
-        config:
-          hide_credentials: false
-          key_names:
-            - apikey
+      # - name: key-auth
+      #   config:
+      #     hide_credentials: false
+      #     key_names:
+      #       - apikey
 
   # --- Realtime ---
   - name: realtime-v1
@@ -39,10 +39,49 @@ services:
     plugins:
       - name: cors
 
+  # --- Success Page (Root) ---
+  - name: success-page
+    url: http://localhost:8000/ # Dummy URL
+    routes:
+      - name: success-route
+        paths:
+          - /
+    plugins:
+      - name: request-termination
+        config:
+          status_code: 200
+          content_type: text/html
+          body: |
+            <html><body style='font-family:sans-serif;text-align:center;padding-top:50px;background:#0b1e1a;color:white;'>
+                <div style='border:2px solid #b8860b; display:inline-block; padding:40px; border-radius:15px; background:rgba(0,0,0,0.3); box-shadow: 0 10px 30px rgba(0,0,0,0.5);'>
+                    <h1 style='color:#daa520; font-size: 32px; margin-bottom: 10px;'>Login Successful!</h1>
+                    <p style='font-size: 18px; color: #ccc;'>Your account is now connected.</p>
+                    <p id='timer' style='margin-top:20px; font-size: 16px; color: #888;'>This window will close in 5 seconds...</p>
+                    <button onclick='window.close()' style='margin-top:20px; padding:15px 30px; font-size:18px; font-weight:bold; cursor:pointer; background:#daa520; color:#0b1e1a; border:none; border-radius:8px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); font-family: sans-serif;'>CLOSE NOW</button>
+                </div>
+                <script>
+                    let seconds = 5;
+                    const timerElement = document.getElementById('timer');
+                    const interval = setInterval(() => {
+                        seconds--;
+                        if (seconds <= 0) {
+                            clearInterval(interval);
+                            window.close();
+                            // Fallback for when browser blocks window.close()
+                            timerElement.innerHTML = '<span style="color:#4caf50; font-weight:bold;">✓ Login Complete.</span><br>You can now safely return to the game.';
+                            document.querySelector("button").innerText = "RETURN TO GAME (CLOSE)";
+                        } else {
+                            timerElement.innerText = 'Closing in ' + seconds + ' seconds...';
+                        }
+                    }, 1000);
+                    setTimeout(() => window.close(), 5000);
+                </script>
+            </body></html>
+
 consumers:
   - username: anon
     keyauth_credentials:
-      - key: ${ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoyMDAwMDAwMDAwfQ.placeholder}
+      - key: okie_rummy_anon_key_2025
   - username: service_role
     keyauth_credentials:
-      - key: ${SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjIwMDAwMDAwMDB9.placeholder}
+      - key: okie_rummy_service_role_key_2025

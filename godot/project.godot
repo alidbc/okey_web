@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 NetworkManager="*res://UI/Scenes/NetworkManager.tscn"
 ServerManager="*res://Server/ServerManager.tscn"
 AccountManager="*res://UI/Scenes/AccountManager.tscn"
+AudioEngine="*res://UI/Scenes/AudioEngine.tscn"
 
 [display]
 

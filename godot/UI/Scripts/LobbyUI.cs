@@ -30,6 +30,7 @@ namespace OkieRummyGodot.UI.Scripts
 
         private Core.Networking.NetworkManager _networkManager;
         private Core.Networking.PresenceService _presenceService;
+        private AudioEngine _audioEngine;
 #pragma warning disable CS0169 // The field is never used
         private Label _requestsBadge;
 #pragma warning restore CS0169
@@ -46,6 +47,7 @@ namespace OkieRummyGodot.UI.Scripts
 
         public override void _Ready()
         {
+            _audioEngine = GetNodeOrNull<AudioEngine>("/root/AudioEngine");
             // ApplyGlassmorphism removed from here
             
             StatusLabel = GetNode<Label>("MarginContainer/MainLayout/RoomManagement/VBoxContainer/StatusLabel");

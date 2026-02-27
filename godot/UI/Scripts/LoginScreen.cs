@@ -18,6 +18,7 @@ public partial class LoginScreen : Control
     [Export] public Button GuestButton;
     [Export] public Label StatusLabel;
     [Export] public Label VersionLabel;
+    private AudioEngine _audioEngine;
 
     private AccountManager _accountManager;
 
@@ -25,6 +26,7 @@ public partial class LoginScreen : Control
 
     public override void _Ready()
     {
+        _audioEngine = GetNodeOrNull<AudioEngine>("/root/AudioEngine");
         GD.Print("LoginScreen: _Ready started");
         _accountManager = GetNodeOrNull<AccountManager>("/root/AccountManager");
         GD.Print($"LoginScreen: AccountManager found: {_accountManager != null}");

@@ -24,13 +24,33 @@ public partial class AudioEngine : Node
         LoadSound("tile_click", "res://Assets/Sounds/tile_click.wav");
         LoadSound("tile_draw", "res://Assets/Sounds/tile_draw.wav");
         LoadSound("turn_change", "res://Assets/Sounds/turn_change.wav");
+        LoadSound("tile_discard", "res://Assets/Sounds/tile_discard.wav");
     }
 
     private void LoadSound(string name, string path)
     {
-        if (FileAccess.FileExists(path))
+        try 
         {
-            _sounds[name] = GD.Load<AudioStream>(path);
+            if (ResourceLoader.Exists(path))
+            {
+                var stream = GD.Load<AudioStream>(path);
+                if (stream != null)
+                {
+                    _sounds[name] = stream;
+                }
+                else
+                {
+                    GD.PrintErr($"AudioEngine: GD.Load returned null for {path}");
+                }
+            }
+            else
+            {
+                GD.PrintErr($"AudioEngine: Resource not found at {path}");
+            }
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"AudioEngine: Exception loading {name} from {path}: {ex.Message}");
         }
     }
 

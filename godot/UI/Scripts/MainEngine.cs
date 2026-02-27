@@ -57,9 +57,12 @@ public partial class MainEngine : Control
     
     private Control _leaveConfirmationPanel;
     private Button _leaveGameButton;
+    private AudioEngine _audioEngine;
 
     public override void _Ready()
     {
+        // Get AudioEngine from Autoload
+        _audioEngine = GetNodeOrNull<AudioEngine>("/root/AudioEngine");
         // The NetworkManager is an Autoload in Phase 3
         NetworkManager = GetNodeOrNull<Core.Networking.NetworkManager>("/root/NetworkManager");
         _boardCenter = GetNodeOrNull<BoardCenterUI>("CenterLayout/MiddleRow/BoardCenter");
@@ -179,6 +182,10 @@ public partial class MainEngine : Control
         {
             _isMultiplayer = false;
             StartNewGame();
+        }
+
+        if (StartGameButton != null)
+        {
         }
     }
 
@@ -451,7 +458,12 @@ public partial class MainEngine : Control
         // If it's a bot's turn and we are NOT in multiplayer, trigger the timer
         if (activePlayer.IsBot && !_isMultiplayer)
         {
+            // If it's the bot's turn, we might want to play turn_change or similar if it's a transition
             _botTimer.Start(1.5f); // Bot thinking time before acting
+        }
+        else if (activePlayer.Id == _localPlayer.Id && _matchManager.CurrentPhase == TurnPhase.Draw)
+        {
+            // Only play turn change when it's the START of the local player's turn (Draw phase)
         }
         
         UpdateDiscardVisuals();
@@ -554,6 +566,8 @@ public partial class MainEngine : Control
         if (landedIndex != -1)
         {
             AnimateDrawEffect(false, landedIndex, true);
+            // Play draw sound
+            _audioEngine?.PlayGame("tile_draw");
         }
         else
         {
@@ -577,6 +591,8 @@ public partial class MainEngine : Control
         if (landedIndex != -1)
         {
             AnimateDrawEffect(true, landedIndex, true);
+            // Play draw from discard sound (reuse draw sound)
+            _audioEngine?.PlayGame("tile_draw");
         }
         else
         {
@@ -713,6 +729,8 @@ public partial class MainEngine : Control
             // as they are already dragging the tile physically.
             HandleGameStateChanged(true);
             LocalRackUI.RefreshVisuals();
+            // Play discard sound
+            _audioEngine?.PlayGame("tile_discard");
         }
     }
 
@@ -852,6 +870,8 @@ public partial class MainEngine : Control
             sourceNode = GetDiscardSourceForPlayer(playerId);
             sourceTileUI = GetDiscardTileUIAtNode(sourceNode);
         }
+
+        _audioEngine?.PlayGame("tile_draw");
     }
     
     private void OnMatchTileDiscarded(string playerId, Tile tile, int rackIndex)
@@ -869,6 +889,7 @@ public partial class MainEngine : Control
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
             });
+            _audioEngine?.PlayGame("tile_discard");
         }
     }
 
@@ -1130,6 +1151,7 @@ public partial class MainEngine : Control
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
             }));
+            _audioEngine?.PlayGame("tile_draw");
         }
     }
 
@@ -1180,6 +1202,7 @@ public partial class MainEngine : Control
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
             }));
+            _audioEngine?.PlayGame("tile_discard");
         }
     }
 

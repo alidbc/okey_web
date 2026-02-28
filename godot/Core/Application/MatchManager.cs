@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using OkieRummyGodot.Core.Domain;
 
@@ -26,6 +27,8 @@ public class MatchManager
     
     public string WinnerId { get; set; }
     public List<Tile> WinnerTiles { get; set; }
+    public bool IsPairWin { get; set; }
+    public bool IsOkeyFinish { get; set; }
 
     // In a real Okey game, each player drops to the player on their right.
     // For simplicity mirroring the React version, we just store what they discarded
@@ -192,33 +195,75 @@ public class MatchManager
         return true;
     }
 
+    public bool CanShowIndicator(string playerId)
+    {
+        int pIdx = Players.FindIndex(p => p.Id == playerId);
+        if (pIdx == -1 || pIdx != CurrentPlayerIndex) return false;
+
+        // Player 0 starts in Discard phase on Turn 1
+        if (pIdx == 0)
+        {
+            if (TurnID != 1 || CurrentPhase != TurnPhase.Discard) return false;
+        }
+        else
+        {
+            // Other players show it during their first Draw phase
+            if (TurnID != pIdx + 1 || CurrentPhase != TurnPhase.Draw) return false;
+        }
+
+        var player = Players[pIdx];
+        return player.Rack.Any(t => t != null && t.Value == IndicatorTile.Value && t.Color == IndicatorTile.Color && !t.IsFakeOkey);
+    }
+
+    public bool ShowIndicator(string playerId)
+    {
+        if (!CanShowIndicator(playerId)) return false;
+
+        // Deduction for opponents
+        foreach (var p in Players)
+        {
+            if (p.Id != playerId)
+            {
+                // In a real game, this might reduce points. For now, we'll implement the point system in GetPlayerScores.
+                // We just need to mark that it happened.
+                p.IndicatorPenaltyApplied = true; 
+            }
+        }
+
+        OnGameStateChanged?.Invoke();
+        return true;
+    }
+
     public (bool success, string message) FinishGame(string playerId, int finishTileIndex)
     {
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Discard || Players[CurrentPlayerIndex].Id != playerId)
             return (false, "Not your turn to finish.");
 
         var player = Players[CurrentPlayerIndex];
-        
-        // Handle finish by preserving gaps so ValidateHandGroups can identify clusters
+        Tile finishTile = player.Rack[finishTileIndex];
+
+        // Handle finish by preserving gaps so ValidateHandGroups/Pairs can identify clusters
         var validationList = new List<Tile>();
         for (int i = 0; i < player.Rack.Length; i++)
         {
-            // Treat the finishing tile as a gap (null) for validation
             if (i == finishTileIndex)
                 validationList.Add(null);
             else
                 validationList.Add(player.Rack[i]);
         }
         
-        var (isValid, reason) = RuleEngine.ValidateHandGroups(validationList);
-        if (isValid)
+        var (isValidSets, setsReason) = RuleEngine.ValidateHandGroups(validationList);
+        var (isValidPairs, pairsReason) = RuleEngine.ValidatePairs(validationList);
+
+        if (isValidSets || isValidPairs)
         {
             Status = GameStatus.Victory;
             WinnerId = playerId;
+            IsPairWin = isValidPairs;
+            IsOkeyFinish = finishTile != null && finishTile.IsWildcard;
             
             // Store the entire rack to preserve organization/gaps
             WinnerTiles = new List<Tile>(player.Rack);
-            // Specifically null out the finishing tile if it's still there
             if (finishTileIndex >= 0 && finishTileIndex < WinnerTiles.Count)
             {
                 WinnerTiles[finishTileIndex] = null;
@@ -228,7 +273,7 @@ public class MatchManager
             return (true, "Victory!");
         }
 
-        return (false, reason);
+        return (false, isValidPairs ? string.Empty : $"{setsReason} / {pairsReason}");
     }
 
     public List<PlayerScore> GetPlayerScores()
@@ -237,18 +282,27 @@ public class MatchManager
         foreach (var p in Players)
         {
             bool isWinner = Status == GameStatus.Victory && p.Id == WinnerId;
-            int scoreValue = 0;
+            
+            // Standard Okey point-countdown system
+            // Players start at 20 (or any configured value).
+            // Winner's score doesn't change, others lose points.
+            
+            int startingPoints = 20; 
+            int deduction = 0;
 
-            if (isWinner)
+            if (Status == GameStatus.Victory && !isWinner)
             {
-                scoreValue = 100; // Bonus for winning
+                if (IsPairWin) deduction = 4;
+                else if (IsOkeyFinish) deduction = 4;
+                else deduction = 2; // Normal sets/runs win
             }
-            else
+
+            if (p.IndicatorPenaltyApplied)
             {
-                // Penalty-based scoring: 100 - total penalty (capped at 0)
-                int penalty = RuleEngine.CalculatePenalty(p.Rack);
-                scoreValue = Math.Max(0, 100 - penalty);
+                deduction += 1;
             }
+
+            int finalScore = Math.Max(0, startingPoints - deduction);
 
             scores.Add(new PlayerScore
             {
@@ -256,7 +310,7 @@ public class MatchManager
                 PlayerName = p.Name,
                 AvatarUrl = p.AvatarUrl,
                 IsWinner = isWinner,
-                Score = scoreValue
+                Score = finalScore
             });
         }
         return scores;

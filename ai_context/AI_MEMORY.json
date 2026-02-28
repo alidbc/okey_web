@@ -1,0 +1,78 @@
+{
+  "project_name": "Okey Rummy — Multiplayer",
+  "created_at": "2023-10-14T12:00:00Z",
+  "overview": {
+    "prerequisites": [
+      {
+        "name": "Godot 4.5 Mono",
+        "url": "https://godotengine.org/download"
+      },
+      {
+        "name": ".NET 8 SDK",
+        "url": "https://dotnet.microsoft.com/download"
+      },
+      {
+        "name": "Docker",
+        "url": "https://www.docker.com/"
+      }
+    ],
+    "quick_start_steps": [
+      {
+        "step_number": 1,
+        "description": "Start Supabase (Backend)",
+        "command": "cd supabase && cp .env.example .env && # Edit `.env` — set `POSTGRES_PASSWORD`, `JWT_SECRET`, and IDP credentials && docker compose up -d"
+      },
+      {
+        "step_number": 2,
+        "description": "Configure the Game Client",
+        "command": "Edit godot/Core/Networking/AccountManager.cs"
+      },
+      {
+        "step_number": 3,
+        "description": "Build & Run",
+        "command": "cd godot && dotnet build && # Open in Godot Editor, or run directly: /path/to/Godot --path ."
+      }
+    ],
+    "architecture": [
+      {
+        "component": "Database",
+        "details": "Localhost at `localhost:5432`"
+      },
+      {
+        "component": "Supabase Backend",
+        "details": "Self-hosted for accounts, friends, and presence"
+      },
+      {
+        "component": "Game Client",
+        "details": "Built with Godot 4.5 Mono and .NET"
+      }
+    ],
+    "features": [
+      {
+        "name": "Authentication",
+        "description": "Google, Facebook, Discord, Twitch OAuth + Guest (device ID)"
+      },
+      {
+        "name": "Friends",
+        "description": "Search, send/accept/decline requests, block/unblock"
+      },
+      {
+        "name": "Bot Replacement",
+        "description": "Disconnected players auto-replaced by bot after 1 missed turn"
+      }
+    ],
+    "identity_providers_setup": [
+      {
+        "provider": "Twitch",
+        "configuration": "TWITCH_ENABLED=true, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET"
+      }
+    ],
+    "testing_multiplayer": {
+      "description": "For testing multiplayer, you can run the server and multiple clients headlessly or with GUIs",
+      "command": "# Headless server + 3 GUI clients\nmkdir -p logs && /path/to/Godot --headless --path godot -- --server --test-mode > logs/server.log 2>&1 &\n/path/to/Godot --path godot -- --no-server &"
+    },
+    "documentation": {
+      "okey_rules": "Detailed Okey Rummy rules and scoring logic are at `ai_context/okey_rules_guide.md`"
+    }
+  }
+}

@@ -124,4 +124,46 @@ public static class RuleEngine
         }
         return penalty;
     }
+
+    public static (bool isValid, string reason) ValidatePairs(List<Tile> rack)
+    {
+        var tiles = rack.Where(t => t != null).ToList();
+        if (tiles.Count != 14)
+        {
+            return (false, $"You need exactly 14 tiles to finish with pairs (currently have: {tiles.Count}).");
+        }
+
+        var nonWildcards = tiles.Where(t => !t.IsWildcard).ToList();
+        int wildcardCount = tiles.Count - nonWildcards.Count;
+
+        // Group non-wildcard tiles by color and value
+        var groups = nonWildcards.GroupBy(t => new { t.Color, t.Value })
+                                 .Select(g => g.Count())
+                                 .ToList();
+
+        int pairs = 0;
+        int singles = 0;
+
+        foreach (int count in groups)
+        {
+            pairs += count / 2;
+            singles += count % 2;
+        }
+
+        // Each single needs a wildcard to form a pair
+        if (singles <= wildcardCount)
+        {
+            // After matching all singles, any remaining wildcards must come in pairs
+            int remainingWildcards = wildcardCount - singles;
+            pairs += singles;
+            pairs += remainingWildcards / 2;
+
+            if (pairs == 7)
+            {
+                return (true, string.Empty);
+            }
+        }
+
+        return (false, "You do not have 7 valid pairs.");
+    }
 }

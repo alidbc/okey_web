@@ -13,6 +13,7 @@ public class Player
     public string ReconnectToken { get; set; }
     public int SeatIndex { get; set; }
     public int ConsecutiveMissedTurns { get; set; }
+    public bool IndicatorPenaltyApplied { get; set; }
     
     // The player's tile rack (fixed size of 26 in Okey)
     public Tile[] Rack { get; set; }

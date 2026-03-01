@@ -14,17 +14,23 @@ public partial class GameEndUI : Control
     [Export] public Container TileContainer;
     [Export] public Container LeaderboardContainer;
     [Export] public PackedScene ScoreRowScene;
+    [Export] public CpuParticles2D ConfettiParticles;
+    [Export] public TextureRect RackBackground;
+    
+    private Tween _glowTween;
+    private AudioEngine _audioEngine;
     
     public override void _Ready()
     {
         GD.Print("GameEndUI: _Ready called");
+        _audioEngine = GetNodeOrNull<AudioEngine>("/root/AudioEngine");
         
         // Styling via code to match React glassmorphism
         var panel = GetNodeOrNull<PanelContainer>("CenterContainer/PanelContainer");
         if (panel != null)
         {
             var style = new StyleBoxFlat();
-            style.BgColor = new Color(0.04f, 0.10f, 0.08f, 0.95f); // Slightly more opaque
+            style.BgColor = new Color(0.04f, 0.10f, 0.08f, 0.95f);
             style.CornerRadiusBottomLeft = 32;
             style.CornerRadiusBottomRight = 32;
             style.CornerRadiusTopLeft = 32;
@@ -33,15 +39,32 @@ public partial class GameEndUI : Control
             style.BorderWidthLeft = 4;
             style.BorderWidthRight = 4;
             style.BorderWidthTop = 4;
-            style.BorderColor = new Color(0.72f, 0.53f, 0.04f); // #b8860b gold
+            style.BorderColor = new Color(0.72f, 0.53f, 0.04f); // Gold
             style.ShadowColor = new Color(0, 0, 0, 0.4f);
             style.ShadowSize = 25;
             panel.AddThemeStyleboxOverride("panel", style);
         }
-        else
+
+        if (RackBackground != null)
         {
-            GD.PrintErr("GameEndUI: PanelContainer not found in _Ready");
+            RackBackground.Texture = ResourceLoader.Load<Texture2D>("res://Assets/rack.png");
+            RackBackground.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+            RackBackground.StretchMode = TextureRect.StretchModeEnum.Scale;
         }
+
+        StartRadialGlow();
+    }
+
+    private void StartRadialGlow()
+    {
+        if (TitleLabel == null) return;
+        
+        _glowTween = CreateTween();
+        _glowTween.SetLoops();
+        _glowTween.TweenProperty(TitleLabel, "theme_override_colors/font_shadow_color", new Color(1, 0.84f, 0, 0.8f), 1.0f);
+        _glowTween.Parallel().TweenProperty(TitleLabel, "theme_override_constants/shadow_outline_size", 15, 1.0f);
+        _glowTween.TweenProperty(TitleLabel, "theme_override_colors/font_shadow_color", new Color(1, 0.84f, 0, 0.2f), 1.5f);
+        _glowTween.Parallel().TweenProperty(TitleLabel, "theme_override_constants/shadow_outline_size", 5, 1.5f);
     }
 
     public void DisplayResults(List<PlayerScore> scores, bool isDeckEmpty)
@@ -49,7 +72,14 @@ public partial class GameEndUI : Control
         GD.Print($"GameEndUI: DisplayResults called. scores={scores.Count}, isDeckEmpty={isDeckEmpty}");
         
         if (TitleLabel != null)
+        {
             TitleLabel.Text = isDeckEmpty ? "GAME OVER" : "VICTORY";
+            if (!isDeckEmpty && ConfettiParticles != null)
+            {
+                ConfettiParticles.Emitting = true;
+                _audioEngine?.PlayUI("victory_fanfare"); // Optional soundtrack trigger
+            }
+        }
             
         if (SubtitleLabel != null)
         {

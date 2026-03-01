@@ -10,24 +10,27 @@
 [ext_resource type="PackedScene" path="res://UI/Scenes/GameEndUI.tscn" id="7_game_end"]
 [ext_resource type="Script" path="res://UI/Scripts/NameplateUI.cs" id="8_nameplate"]
 [ext_resource type="Shader" path="res://Assets/TimerShader.gdshader" id="9_shader"]
+[ext_resource type="Shader" path="res://Assets/premium_felt.gdshader" id="12_felt_shader"]
+[ext_resource type="Shader" path="res://Assets/PremiumActionBar.gdshader" id="10_premium_shader"]
+[ext_resource type="Texture2D" uid="uid://djs6ctw66hciq" path="res://Assets/rack.png" id="11_rack_tex"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nameplate"]
-content_margin_left = 21.0
-content_margin_top = 11.0
-content_margin_right = 21.0
-content_margin_bottom = 11.0
 bg_color = Color(0.360784, 0.227451, 0.129412, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.164706, 0.101961, 0.0392157, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 shadow_color = Color(0, 0, 0, 0.2)
 shadow_size = 4
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 21.0
+content_margin_bottom = 8.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_bg"]
 bg_color = Color(0.2, 0.2, 0.2, 1)
@@ -67,7 +70,23 @@ shader_parameter/thickness = 0.08
 shader_parameter/color = Color(1, 0.75, 0.18, 1)
 shader_parameter/bg_color = Color(1, 1, 1, 0.2)
 
-[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4", "StartGameButton")]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_premium_bar"]
+shader = ExtResource("10_premium_shader")
+shader_parameter/wood_texture = ExtResource("11_rack_tex")
+shader_parameter/tiling_factor = 4.0
+shader_parameter/cutout_width = 0.28
+shader_parameter/cutout_height = 0.8
+shader_parameter/border_width = 0.05
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_felt"]
+shader = ExtResource("12_felt_shader")
+shader_parameter/grain_amount = 0.1
+shader_parameter/grain_size = 0.8
+shader_parameter/vignette_intensity = 0.35
+shader_parameter/vignette_opacity = 0.45
+shader_parameter/base_felt_color = Color(0.12, 0.35, 0.22, 1)
+
+[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4", "StartGameButton", "ForceWinButton", "LeaveGameButton")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -85,10 +104,12 @@ DZ2 = NodePath("CenterLayout/TopRow/DZ2")
 DZ3 = NodePath("CenterLayout/TopRow/DZ3")
 DZ4 = NodePath("CenterLayout/BottomRow/DZ4")
 StartGameButton = NodePath("BottomArea/ActionButtons/StartButton")
-ForceWinButton = NodePath("BottomArea/ActionButtons/ForceWinButton")
+ForceWinButton = NodePath("PremiumActionBar/ActionButtons/ForceWinButton")
+LeaveGameButton = NodePath("PremiumActionBar/ActionButtons/LeaveGameButton")
 GameEndUIScreen = ExtResource("7_game_end")
 
 [node name="Background_Felt" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_felt")
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -96,6 +117,55 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.0862745, 0.196078, 0.129412, 1)
+
+[node name="PremiumActionBar" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_premium_bar")
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 85.0
+grow_horizontal = 2
+
+[node name="ActionButtons" type="Control" parent="PremiumActionBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="LeaveGameButton" type="Button" parent="PremiumActionBar/ActionButtons"]
+custom_minimum_size = Vector2(170, 50)
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 30.0
+offset_top = -25.0
+offset_right = 200.0
+offset_bottom = 25.0
+grow_vertical = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "LEAVE GAME"
+
+[node name="ForceWinButton" type="Button" parent="PremiumActionBar/ActionButtons"]
+custom_minimum_size = Vector2(170, 50)
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -25.0
+offset_right = -30.0
+offset_bottom = 25.0
+grow_horizontal = 0
+grow_vertical = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+text = "FORCE WIN"
 
 [node name="CenterLayout" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -105,9 +175,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -450.0
-offset_top = -335.0
+offset_top = -320.0
 offset_right = 450.0
-offset_bottom = 37.0
+offset_bottom = 52.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 24
@@ -189,7 +259,7 @@ border_color = Color(1, 1, 1, 0.1)
 editor_only = false
 
 [node name="Nameplate" type="PanelContainer" parent="CenterLayout/BottomRow"]
-custom_minimum_size = Vector2(243, 86)
+custom_minimum_size = Vector2(215, 86)
 layout_mode = 2
 size_flags_vertical = 4
 theme_override_styles/panel = SubResource("StyleBoxFlat_nameplate")
@@ -245,34 +315,39 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="OnlineIndicator" type="Panel" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
-custom_minimum_size = Vector2(16, 16)
+custom_minimum_size = Vector2(11, 11)
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -8.0
-offset_top = -4.0
+offset_left = -4.0
+offset_top = 4.0
 offset_right = 4.0
-offset_bottom = 8.0
+offset_bottom = 12.0
 grow_horizontal = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_online")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = -2
 alignment = 1
 
 [node name="Name" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.992157, 0.964706, 0.823529, 1)
+theme_override_colors/font_color = Color(0.984314, 0.901961, 0.611765, 1)
 theme_override_font_sizes/font_size = 21
 text = "OkeyPro_99"
+clip_text = true
+text_overrun_behavior = 3
 
 [node name="Level" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.5)
-theme_override_font_sizes/font_size = 16
-text = "LEVEL 42"
+theme_override_colors/font_color = Color(0.984314, 0.752941, 0.176471, 0.8)
+theme_override_font_sizes/font_size = 18
+text = "Level 1"
+clip_text = true
+text_overrun_behavior = 3
 
 [node name="DZ1" type="PanelContainer" parent="CenterLayout/BottomRow"]
 custom_minimum_size = Vector2(75, 104)

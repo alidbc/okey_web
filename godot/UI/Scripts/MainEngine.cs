@@ -25,7 +25,8 @@ public partial class MainEngine : Control
     [Export] public DiscardZoneUI DZ4; // Left to Local
     
     [Export] public Button StartGameButton;
-    public Button ForceWinButton;
+    [Export] public Button ForceWinButton;
+    [Export] public Button LeaveGameButton;
     [Export] public PackedScene GameEndUIScreen;
     public Core.Networking.NetworkManager NetworkManager;
     
@@ -1472,6 +1473,27 @@ public partial class MainEngine : Control
 
     private void CreateDebugButtons()
     {
+        // If we have scene-based buttons, just connect them and skip dynamic creation
+        if (LeaveGameButton != null && ForceWinButton != null)
+        {
+            _leaveGameButton = LeaveGameButton;
+            
+            // Apply premium styles to the scene buttons
+            ApplyButtonStyle(_leaveGameButton, new Color(0.6f, 0.2f, 0.2f, 0.8f)); // Balanced Red
+            ApplyButtonStyle(ForceWinButton, new Color(0.35f, 0.45f, 0.35f, 0.8f)); // Balanced Green
+
+            _leaveGameButton.Pressed += () => {
+                if (_leaveConfirmationPanel != null) _leaveConfirmationPanel.Visible = true;
+            };
+            
+            ForceWinButton.Pressed += () => {
+                GD.Print("ForceWin clicked (via scene button)");
+                _matchManager?.ForceWin(_localPlayer?.Id ?? "local_user");
+            };
+            
+            return;
+        }
+
         var topContainer = new HBoxContainer();
         topContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft, LayoutPresetMode.Minsize, 20);
         topContainer.AddThemeConstantOverride("separation", 10);
@@ -1516,6 +1538,41 @@ public partial class MainEngine : Control
         
         ForceWinButton.Pressed += OnForceWinPressed;
         topContainer.AddChild(ForceWinButton);
+    }
+
+    private void ApplyButtonStyle(Button button, Color baseColor)
+    {
+        if (button == null) return;
+
+        var style = new StyleBoxFlat();
+        style.BgColor = baseColor;
+        style.CornerRadiusBottomLeft = 12;
+        style.CornerRadiusBottomRight = 12;
+        style.CornerRadiusTopLeft = 12;
+        style.CornerRadiusTopRight = 12;
+        style.BorderWidthBottom = 2;
+        style.BorderWidthLeft = 2;
+        style.BorderWidthRight = 2;
+        style.BorderWidthTop = 2;
+        style.BorderColor = new Color(1, 1, 1, 0.15f);
+        style.ShadowColor = new Color(0, 0, 0, 0.3f);
+        style.ShadowSize = 4;
+        style.ContentMarginLeft = 10;
+        style.ContentMarginRight = 10;
+        
+        button.AddThemeStyleboxOverride("normal", style);
+        
+        var hover = (StyleBoxFlat)style.Duplicate();
+        hover.BgColor = baseColor.Lightened(0.15f);
+        hover.BorderColor = new Color(1, 1, 1, 0.3f);
+        button.AddThemeStyleboxOverride("hover", hover);
+        
+        var pressed = (StyleBoxFlat)style.Duplicate();
+        pressed.BgColor = baseColor.Darkened(0.1f);
+        button.AddThemeStyleboxOverride("pressed", pressed);
+        
+        button.AddThemeColorOverride("font_color", new Color(1, 1, 1, 0.9f));
+        button.AddThemeFontSizeOverride("font_size", 18);
     }
 
     private void CreateConfirmationDialog()

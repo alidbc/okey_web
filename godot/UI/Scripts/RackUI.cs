@@ -17,8 +17,8 @@ public partial class RackUI : Control
 	private HBoxContainer _bottomRow;
 	private TextureRect _rackBackgroundImage;
 
-	[Export] public float TopRowShift = 17.0f; 
-	[Export] public float BottomRowShift = 6.0f;
+	[Export] public float TopRowShift = 15.0f; 
+	[Export] public float BottomRowShift = -12.0f;
 
 	public override void _Ready()
 	{

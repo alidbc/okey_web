@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://UI/Scripts/TileUI.cs" id="1_tile_script"]
 [ext_resource type="Texture2D" uid="uid://dfyq7k7m3e" path="res://Assets/heart_indicator.svg" id="2_heart"]
 [ext_resource type="Texture2D" uid="uid://bvyg7k4g1v" path="res://Assets/fake_okey.svg" id="3_fake_okey"]
-[ext_resource type="Texture2D" path="res://Assets/Tile.png" id="4_bg"]
+[ext_resource type="Texture2D" path="res://Assets/Tile_v2.png" id="4_bg"]
 
 [sub_resource type="SystemFont" id="SystemFont_bold"]
 font_weight = 700

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("OkieRummyGodot")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5d8edd036c649eae23fa822fc494c8b7c44101f5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1a79dbb6d3dbe74439651a9f0378453c4ff667ac")]
 [assembly: System.Reflection.AssemblyProductAttribute("OkieRummyGodot")]
 [assembly: System.Reflection.AssemblyTitleAttribute("OkieRummyGodot")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

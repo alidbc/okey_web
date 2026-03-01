@@ -130,11 +130,18 @@ public partial class GameEndUI : Control
             return;
         }
 
-        // Clear old tiles
-        foreach (Node child in TileContainer.GetChildren())
+        var row1 = TileContainer.GetNodeOrNull<Container>("Row1");
+        var row2 = TileContainer.GetNodeOrNull<Container>("Row2");
+
+        if (row1 == null || row2 == null)
         {
-            child.QueueFree();
+            GD.PrintErr("GameEndUI: Row1 or Row2 not found!");
+            return;
         }
+
+        // Clear old tiles
+        foreach (Node child in row1.GetChildren()) child.QueueFree();
+        foreach (Node child in row2.GetChildren()) child.QueueFree();
 
         if (tiles == null)
         {
@@ -142,41 +149,39 @@ public partial class GameEndUI : Control
             return;
         }
 
-        GD.Print($"GameEndUI: Rendering {tiles.Count} tile slots");
+        GD.Print($"GameEndUI: Rendering {tiles.Count} tile slots into two rows");
         
-        PackedScene tileScene = null;
-        try
+        PackedScene tileScene = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn");
+        if (tileScene == null)
         {
-            tileScene = ResourceLoader.Load<PackedScene>("res://UI/Scenes/TileUI.tscn");
-            if (tileScene == null)
-            {
-                GD.PrintErr("GameEndUI: FAILED to load res://UI/Scenes/TileUI.tscn");
-                return;
-            }
-        }
-        catch (System.Exception e)
-        {
-            GD.PrintErr($"GameEndUI: Exception loading tile scene: {e.Message}");
+            GD.PrintErr("GameEndUI: FAILED to load res://UI/Scenes/TileUI.tscn");
             return;
         }
 
+        // Split tiles across rows. Typically 14 tiles + 1 discard = 15 or 14 total.
+        // We'll put the first 7-8 in row 1, rest in row 2.
+        int row1Limit = (tiles.Count + 1) / 2;
         int tilesRendered = 0;
-        foreach (var tileData in tiles)
+
+        for (int i = 0; i < tiles.Count; i++)
         {
+            var tileData = tiles[i];
+            Container targetRow = (i < row1Limit) ? row1 : row2;
+
             if (tileData == null)
             {
                 var spacer = new Control();
-                spacer.CustomMinimumSize = new Vector2(50, 75); // Slightly larger
-                TileContainer.AddChild(spacer);
+                spacer.CustomMinimumSize = new Vector2(75, 104);
+                targetRow.AddChild(spacer);
                 continue;
             }
 
             try
             {
                 var tileUI = tileScene.Instantiate<TileUI>();
-                TileContainer.AddChild(tileUI);
+                targetRow.AddChild(tileUI);
                 tileUI.SetTileData(tileData);
-                tileUI.CustomMinimumSize = new Vector2(50, 75); // Match spacer
+                tileUI.CustomMinimumSize = new Vector2(75, 104); // Standard size
                 tileUI.MouseFilter = MouseFilterEnum.Ignore;
                 tilesRendered++;
             }

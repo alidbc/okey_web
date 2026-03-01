@@ -91,4 +91,33 @@ public partial class BoardCenterUI : HBoxContainer
         
         tween.TweenProperty(IndicatorContainer, "position:x", originalPos.X, duration);
     }
+
+    public void GlowIndicator()
+    {
+        if (IndicatorContainer == null) return;
+
+        // Reset any previous state
+        IndicatorContainer.Scale = Vector2.One;
+        IndicatorContainer.Modulate = new Color(1, 1, 1, 1);
+
+        Tween tween = GetTree().CreateTween();
+        tween.SetParallel(true);
+        tween.SetTrans(Tween.TransitionType.Back);
+        tween.SetEase(Tween.EaseType.Out);
+
+        // Punch out and glow golden
+        tween.TweenProperty(IndicatorContainer, "scale", new Vector2(1.25f, 1.25f), 0.3f);
+        tween.TweenProperty(IndicatorContainer, "modulate", new Color(1.5f, 1.3f, 0.5f, 1f), 0.3f); // Over-brightness for glow effect
+
+        // Settle back
+        tween.SetParallel(false);
+        tween.TweenProperty(IndicatorContainer, "scale", Vector2.One, 0.4f).SetTrans(Tween.TransitionType.Cubic);
+        tween.Parallel().TweenProperty(IndicatorContainer, "modulate", new Color(1, 1, 1, 1), 0.4f);
+
+        // Flash the underlying tile face if it's visible
+        if (_indicatorTile != null)
+        {
+            _indicatorTile.BaseModulate = new Color(1, 1, 1, 1); // Remove dimming when shown
+        }
+    }
 }

@@ -37,6 +37,7 @@ public class MatchManager
     public event Action OnGameStateChanged;
     public event Action<string, Tile, bool, int, bool> OnTileDrawn; // pid, tile, fromDiscard, targetIndex, isDrag
     public event Action<string, Tile, int> OnTileDiscarded; // pid, tile, rackIndex
+    public event Action<string, Tile> OnIndicatorShown; // pid, indicatorTile
     public event Action OnAutoMoveExecuted;
 
     public MatchManager()
@@ -224,12 +225,11 @@ public class MatchManager
         {
             if (p.Id != playerId)
             {
-                // In a real game, this might reduce points. For now, we'll implement the point system in GetPlayerScores.
-                // We just need to mark that it happened.
                 p.IndicatorPenaltyApplied = true; 
             }
         }
 
+        OnIndicatorShown?.Invoke(playerId, IndicatorTile);
         OnGameStateChanged?.Invoke();
         return true;
     }

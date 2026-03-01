@@ -23,6 +23,7 @@ namespace OkieRummyGodot.Core.Networking
         [Signal] public delegate void WinCheckResultReceivedEventHandler(bool success, string message);
         [Signal] public delegate void TileDrawnEventHandler(string playerId, bool fromDiscard, int targetSlotIndex, string tileId, int value, int color, bool wasDrag);
         [Signal] public delegate void TileDiscardedEventHandler(string playerId, int rackIndex, string tileId, int value, int color);
+        [Signal] public delegate void IndicatorShownEventHandler(string playerId, string tileId, int value, int color);
 
         [Export] public string MainGameScenePath = "res://UI/Scenes/Main.tscn";
         
@@ -387,6 +388,13 @@ namespace OkieRummyGodot.Core.Networking
             EmitSignal(SignalName.TileDiscarded, playerId, rackIndex, tileId, value, color);
         }
 
+        [Rpc(MultiplayerApi.RpcMode.Authority)]
+        public void NotifyIndicatorShown(string playerId, string tileId, int value, int color)
+        {
+            if (Multiplayer.IsServer()) return;
+            EmitSignal(SignalName.IndicatorShown, playerId, tileId, value, color);
+        }
+
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestMoveTile(int fromIndex, int toIndex)
         {
@@ -441,6 +449,8 @@ namespace OkieRummyGodot.Core.Networking
                 Rpc(nameof(NotifyTileDrawn), pid, fromDiscard, targetIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0), isDrag);
             match.OnTileDiscarded += (pid, tile, rackIndex) => 
                 Rpc(nameof(NotifyTileDiscarded), pid, rackIndex, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0));
+            match.OnIndicatorShown += (pid, tile) => 
+                Rpc(nameof(NotifyIndicatorShown), pid, tile?.Id ?? "", tile?.Value ?? 0, (int)(tile?.Color ?? 0));
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]

@@ -21,9 +21,7 @@ public partial class AudioEngine : Node
         AddChild(_gamePlayer);
 
         // Preload common sounds if available
-        LoadSound("tile_click", "res://Assets/Sounds/tile_click.wav");
         LoadSound("tile_draw", "res://Assets/Sounds/tile_draw.wav");
-        LoadSound("turn_change", "res://Assets/Sounds/turn_change.wav");
         LoadSound("tile_discard", "res://Assets/Sounds/tile_discard.wav");
     }
 

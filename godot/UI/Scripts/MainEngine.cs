@@ -198,6 +198,7 @@ public partial class MainEngine : Control
             NetworkManager.WinCheckResultReceived += OnWinCheckResultReceived;
             NetworkManager.TileDrawn += OnTileDrawnSync;
             NetworkManager.TileDiscarded += OnTileDiscardedSync;
+            NetworkManager.IndicatorShown += OnIndicatorShownSync;
         }
 
         _matchManager = new MatchManager();
@@ -286,6 +287,7 @@ public partial class MainEngine : Control
         _matchManager.OnGameStateChanged += HandleGameStateChanged;
         _matchManager.OnTileDrawn += OnMatchTileDrawn;
         _matchManager.OnTileDiscarded += OnMatchTileDiscarded;
+        _matchManager.OnIndicatorShown += OnMatchIndicatorShown;
 
         // Initialize Local Player with Auth session if available
         var account = GetNodeOrNull<OkieRummyGodot.Core.Networking.AccountManager>("/root/AccountManager");
@@ -833,11 +835,26 @@ public partial class MainEngine : Control
             {
                 StatusLabel.Text = message;
                 StatusLabel.SelfModulate = new Color(0.2f, 1.0f, 0.2f); // Green
+                
+                // If it's an Okey Finish, give it a special visual pop
+                if (_matchManager.IsOkeyFinish)
+                {
+                    _boardCenter?.GlowIndicator(); // Reuse indicator glow for victory pop
+                    StatusLabel.Text = "★ OKEY FINISH ★";
+                    StatusLabel.SelfModulate = new Color(1.0f, 0.84f, 0.0f); // Gold
+                }
             }
             HandleGameStateChanged(true);
         }
         else
         {
+            // Try to show indicator if they dropped on the center board
+            if (target == _boardCenter && _matchManager.ShowIndicator(_localPlayer.Id))
+            {
+                // ShowIndicator triggers OnIndicatorShown which handles the animation
+                return;
+            }
+
             if (StatusLabel != null)
             {
                 StatusLabel.Text = $"Cannot finish: {message}";
@@ -890,6 +907,22 @@ public partial class MainEngine : Control
                 HandleGameStateChanged(true);
             });
             _audioEngine?.PlayGame("tile_discard");
+        }
+    }
+
+    private void OnMatchIndicatorShown(string playerId, Tile tile)
+    {
+        GD.Print($"MainEngine: OnMatchIndicatorShown for {playerId}");
+        _boardCenter?.GlowIndicator();
+        
+        // Show temporary status feedback
+        if (StatusLabel != null)
+        {
+            var p = _matchManager.Players.Find(pl => pl.Id == playerId);
+            _isShowingFeedback = true;
+            _feedbackTimer.Start(2.0f);
+            StatusLabel.Text = $"{p?.Name ?? "Player"} showed the Indicator!";
+            StatusLabel.SelfModulate = new Color(1.0f, 1.0f, 0.4f); // Golden yellow
         }
     }
 
@@ -1080,6 +1113,13 @@ public partial class MainEngine : Control
             GD.Print($"MainEngine: Animating opponent discard effect");
             AnimateOpponentDiscardEffect(playerId, tileId, value, color);
         }
+    }
+
+    private void OnIndicatorShownSync(string playerId, string tileId, int value, int color)
+    {
+        GD.Print($"MainEngine: OnIndicatorShownSync triggered for {playerId}, tileId:{tileId}");
+        Tile mockTile = new Tile(tileId, value, (TileColor)color);
+        OnMatchIndicatorShown(playerId, mockTile);
     }
 
     private void AnimateOpponentDrawEffect(string playerId, bool fromDiscard, string tileId, int value, int color, bool wasDrag)

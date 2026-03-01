@@ -339,12 +339,6 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "START GAME (WITH BOTS)"
 
-[node name="ForceWinButton" type="Button" parent="BottomArea/ActionButtons"]
-custom_minimum_size = Vector2(100, 50)
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
-text = "FORCE WIN"
-
 [node name="SortButton" type="Button" parent="BottomArea"]
 layout_mode = 1
 anchors_preset = 3

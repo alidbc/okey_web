@@ -25,7 +25,7 @@ public partial class MainEngine : Control
     [Export] public DiscardZoneUI DZ4; // Left to Local
     
     [Export] public Button StartGameButton;
-    [Export] public Button ForceWinButton;
+    public Button ForceWinButton;
     [Export] public PackedScene GameEndUIScreen;
     public Core.Networking.NetworkManager NetworkManager;
     
@@ -141,8 +141,7 @@ public partial class MainEngine : Control
         }
 
         // --- DEBUG ONLY: Victory Bypass Button ---
-        // (Removing debugBtn to avoid clutter, will add Leave Game button instead)
-        CreateLeaveGameButton();
+        CreateDebugButtons();
         CreateConfirmationDialog();
         // ------------------------------------------
     
@@ -1471,15 +1470,20 @@ public partial class MainEngine : Control
         }
     }
 
-    private void CreateLeaveGameButton()
+    private void CreateDebugButtons()
     {
+        var topContainer = new HBoxContainer();
+        topContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft, LayoutPresetMode.Minsize, 20);
+        topContainer.AddThemeConstantOverride("separation", 10);
+        topContainer.Position = new Vector2(20, 20);
+        AddChild(topContainer);
+
         _leaveGameButton = new Button();
         _leaveGameButton.Text = "Leave Game";
         _leaveGameButton.CustomMinimumSize = new Vector2(120, 40);
         
-        // Style it to match the theme (reddish/brownish for exit)
         var style = new StyleBoxFlat();
-        style.BgColor = new Color(0.6f, 0.2f, 0.2f, 0.8f); // Dark red transparent
+        style.BgColor = new Color(0.6f, 0.2f, 0.2f, 0.8f);
         style.CornerRadiusBottomLeft = 8;
         style.CornerRadiusBottomRight = 8;
         style.CornerRadiusTopLeft = 8;
@@ -1489,19 +1493,29 @@ public partial class MainEngine : Control
         style.BorderWidthRight = 2;
         style.BorderWidthTop = 2;
         style.BorderColor = new Color(0.4f, 0.1f, 0.1f, 1f);
-        
         _leaveGameButton.AddThemeStyleboxOverride("normal", style);
         
         var hoverStyle = (StyleBoxFlat)style.Duplicate();
         hoverStyle.BgColor = new Color(0.8f, 0.3f, 0.3f, 0.9f);
         _leaveGameButton.AddThemeStyleboxOverride("hover", hoverStyle);
 
-        _leaveGameButton.SetPosition(new Vector2(20, 20));
         _leaveGameButton.Pressed += () => {
             if (_leaveConfirmationPanel != null) _leaveConfirmationPanel.Visible = true;
         };
+        topContainer.AddChild(_leaveGameButton);
+
+        ForceWinButton = new Button();
+        ForceWinButton.Text = "Force Win";
+        ForceWinButton.CustomMinimumSize = new Vector2(100, 40);
         
-        AddChild(_leaveGameButton);
+        var debugStyle = new StyleBoxFlat();
+        debugStyle.BgColor = new Color(0.2f, 0.4f, 0.2f, 0.8f); // Greenish
+        debugStyle.CornerRadiusBottomLeft = 8; debugStyle.CornerRadiusBottomRight = 8;
+        debugStyle.CornerRadiusTopLeft = 8; debugStyle.CornerRadiusTopRight = 8;
+        ForceWinButton.AddThemeStyleboxOverride("normal", debugStyle);
+        
+        ForceWinButton.Pressed += OnForceWinPressed;
+        topContainer.AddChild(ForceWinButton);
     }
 
     private void CreateConfirmationDialog()

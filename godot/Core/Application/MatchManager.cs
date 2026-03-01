@@ -239,7 +239,7 @@ public class MatchManager
         var player = Players.Find(p => p.Id == playerId);
         if (player == null) return;
 
-        Status = GameStatus.GameOver;
+        Status = GameStatus.Victory;
         WinnerId = playerId;
         WinnerTiles = player.Rack.ToList();
         

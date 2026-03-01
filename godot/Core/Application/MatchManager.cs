@@ -234,6 +234,19 @@ public class MatchManager
         return true;
     }
 
+    public void ForceWin(string playerId)
+    {
+        var player = Players.Find(p => p.Id == playerId);
+        if (player == null) return;
+
+        Status = GameStatus.GameOver;
+        WinnerId = playerId;
+        WinnerTiles = player.Rack.ToList();
+        
+        // Scores are computed dynamically in GetPlayerScores based on Status and WinnerId
+        OnGameStateChanged?.Invoke();
+    }
+
     public (bool success, string message) FinishGame(string playerId, int finishTileIndex)
     {
         if (Status != GameStatus.Playing || CurrentPhase != TurnPhase.Discard || Players[CurrentPlayerIndex].Id != playerId)

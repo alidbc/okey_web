@@ -25,6 +25,7 @@ public partial class MainEngine : Control
     [Export] public DiscardZoneUI DZ4; // Left to Local
     
     [Export] public Button StartGameButton;
+    [Export] public Button ForceWinButton;
     [Export] public PackedScene GameEndUIScreen;
     public Core.Networking.NetworkManager NetworkManager;
     
@@ -758,6 +759,12 @@ public partial class MainEngine : Control
         }
         endUI.PlayAgain += OnPlayAgain;
         endUI.MainMenu += OnMainMenu;
+    }
+
+    private void OnForceWinPressed()
+    {
+        GD.Print("MainEngine: DEBUG Force Win triggered");
+        _matchManager.ForceWin(_localPlayer.Id);
     }
 
     private void OnPlayAgain()

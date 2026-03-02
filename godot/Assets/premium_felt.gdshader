@@ -6,6 +6,7 @@ uniform float vignette_intensity : hint_range(0.0, 1.0) = 0.45;
 uniform float vignette_opacity : hint_range(0.0, 1.0) = 0.6;
 uniform vec4 base_felt_color : source_color = vec4(0.08, 0.20, 0.13, 1.0);
 
+
 // Simple pseudo-random function for noise
 float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -26,6 +27,7 @@ void fragment() {
     vec2 centralized_uv = UV - vec2(0.5);
     float dist = length(centralized_uv);
     float vignette = smoothstep(0.5, 0.5 - vignette_intensity, dist);
+    
     
     // Apply vignette (darken edges)
     felt_rgb = mix(felt_rgb * (1.0 - vignette_opacity), felt_rgb, vignette);

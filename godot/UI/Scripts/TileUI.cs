@@ -42,9 +42,14 @@ public partial class TileUI : TextureRect
     
     private bool _isReady = false;
 
+    private bool _isDragging = false;
+    public bool IsDragging { get => _isDragging; set => _isDragging = value; }
+    private Vector2 _lastMousePos;
+
     public override void _Ready()
     {
         ForceReady();
+        _lastMousePos = GetGlobalMousePosition();
         
         // Background texture is assigned via tscn ExtResource now, but we keep fallback just in case
         if (Texture == null)
@@ -55,6 +60,31 @@ public partial class TileUI : TextureRect
             }
             catch (Exception) {}
         }
+    }
+
+    public override void _Process(double delta)
+    {
+        if (IsDragging)
+        {
+            var mousePos = GetGlobalMousePosition();
+            var velocity = (mousePos - _lastMousePos) / (float)delta;
+            _lastMousePos = mousePos;
+
+            // Apply a subtle tilt based on horizontal velocity
+            float targetRotation = Mathf.Clamp(velocity.X * 0.002f, -0.15f, 0.15f);
+            Rotation = Mathf.Lerp(Rotation, targetRotation, (float)(10 * delta));
+            
+            // Subtle scale up when dragging
+            Scale = Scale.Lerp(new Vector2(1.1f, 1.1f), (float)(10 * delta));
+        }
+    }
+
+    public void PlayBounce()
+    {
+        var tween = CreateTween();
+        tween.SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        Scale = new Vector2(0.8f, 0.8f);
+        tween.TweenProperty(this, "scale", new Vector2(1.0f, 1.0f), 0.3f);
     }
 
     public void ForceReady()
@@ -169,6 +199,7 @@ public partial class TileUI : TextureRect
         preview.CustomMinimumSize = CustomMinimumSize;
         preview.Size = Size;
         preview.Modulate = new Color(1, 1, 1, 0.85f);
+        preview.IsDragging = true;
         
         // Offset the preview by half its size so the mouse holds the center of the tile
         preview.Position = -Size / 2f;
@@ -176,8 +207,8 @@ public partial class TileUI : TextureRect
         
         SetDragPreview(dragWrapper);
         
-        // 2. Give visual feedback that the original tile was grabbed
-        Modulate = new Color(1, 1, 1, 0.2f);
+        // 2. Hide the original tile to give the illusion of it being "picked up"
+        Modulate = new Color(1, 1, 1, 0);
         
         return this; // The Variant data passed into _DropData (sending the dragging node itself)
     }
@@ -192,7 +223,7 @@ public partial class TileUI : TextureRect
         
         tween.SetParallel(true);
         tween.TweenProperty(this, "global_position", targetGlobalPos, duration)
-             .SetTrans(Tween.TransitionType.Quad)
+             .SetTrans(Tween.TransitionType.Back)
              .SetEase(Tween.EaseType.Out);
              
         return tween;
@@ -204,6 +235,8 @@ public partial class TileUI : TextureRect
         if (what == NotificationDragEnd)
         {
             UpdateVisuals(); // This resets Modulate based on BaseModulate and TileData
+            Rotation = 0;
+            Scale = Vector2.One;
         }
     }
 }

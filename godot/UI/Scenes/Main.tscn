@@ -13,20 +13,140 @@
 [ext_resource type="Shader" path="res://Assets/premium_felt.gdshader" id="12_felt_shader"]
 [ext_resource type="Shader" path="res://Assets/PremiumActionBar.gdshader" id="10_premium_shader"]
 [ext_resource type="Texture2D" uid="uid://djs6ctw66hciq" path="res://Assets/rack.png" id="11_rack_tex"]
+[ext_resource type="Shader" path="res://Assets/shimmer.gdshader" id="13_shimmer"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nameplate"]
-bg_color = Color(0.360784, 0.227451, 0.129412, 1)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_shimmer"]
+shader = ExtResource("13_shimmer")
+shader_parameter/speed = 1.2
+shader_parameter/width = 0.15
+shader_parameter/intensity = 0.25
+shader_parameter/scale = 1.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn"]
+bg_color = Color(0.8, 0.2, 0.2, 0.3)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.164706, 0.101961, 0.0392157, 1)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
+border_color = Color(0.8, 0.2, 0.2, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 shadow_color = Color(0, 0, 0, 0.2)
 shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn_hover"]
+bg_color = Color(0.8, 0.2, 0.2, 0.5)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.8, 0.2, 0.2, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn_win"]
+bg_color = Color(0.2, 0.6, 0.3, 0.3)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.6, 0.3, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn_win_hover"]
+bg_color = Color(0.2, 0.6, 0.3, 0.5)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.6, 0.3, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn_red"]
+bg_color = Color(0.6, 0.1, 0.1, 0.35)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.3, 0.3, 0.45)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn_red_hover"]
+bg_color = Color(0.6, 0.1, 0.1, 0.55)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.3, 0.3, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn_gold"]
+bg_color = Color(0.984314, 0.901961, 0.611765, 0.2)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.984314, 0.901961, 0.611765, 0.6)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+shadow_color = Color(0, 0, 0, 0.2)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_glass_btn_gold_hover"]
+bg_color = Color(0.984314, 0.901961, 0.611765, 0.4)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.984314, 0.901961, 0.611765, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nameplate"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0, 0, 0, 0.45)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.8, 0.6, 0.2, 0.45)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+shadow_color = Color(0, 0, 0, 0.3)
+shadow_size = 12
+shadow_offset = Vector2(0, 4)
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 21.0
+content_margin_bottom = 8.0
 content_margin_left = 8.0
 content_margin_top = 8.0
 content_margin_right = 21.0
@@ -63,6 +183,22 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_recessed_dz"]
+bg_color = Color(0, 0, 0, 0.15)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0, 0, 0.3)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+draw_center = true
+shadow_color = Color(1, 1, 1, 0.05)
+shadow_size = 1
+shadow_offset = Vector2(1, 1)
+
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_timer"]
 shader = ExtResource("9_shader")
 shader_parameter/value = 0.0
@@ -86,7 +222,7 @@ shader_parameter/vignette_intensity = 0.35
 shader_parameter/vignette_opacity = 0.45
 shader_parameter/base_felt_color = Color(0.12, 0.35, 0.22, 1)
 
-[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4", "StartGameButton", "ForceWinButton", "LeaveGameButton")]
+[node name="Main" type="Control" node_paths=PackedStringArray("LocalRackUI", "StatusLabel", "TopOpponent", "LeftOpponent", "RightOpponent", "DZ1", "DZ2", "DZ3", "DZ4", "StartGameButton", "ForceWinButton", "LeaveGameButton", "SortButton")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -106,6 +242,7 @@ DZ4 = NodePath("CenterLayout/BottomRow/DZ4")
 StartGameButton = NodePath("BottomArea/ActionButtons/StartButton")
 ForceWinButton = NodePath("PremiumActionBar/ActionButtons/ForceWinButton")
 LeaveGameButton = NodePath("PremiumActionBar/ActionButtons/LeaveGameButton")
+SortButton = NodePath("BottomArea/SortButton")
 GameEndUIScreen = ExtResource("7_game_end")
 
 [node name="Background_Felt" type="ColorRect" parent="."]
@@ -145,7 +282,9 @@ offset_top = -25.0
 offset_right = 200.0
 offset_bottom = 25.0
 grow_vertical = 2
-focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_glass_btn_red")
+theme_override_styles/hover = SubResource("StyleBoxFlat_glass_btn_red_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_glass_btn_red_hover")
 mouse_default_cursor_shape = 2
 text = "LEAVE GAME"
 
@@ -163,9 +302,37 @@ offset_right = -30.0
 offset_bottom = 25.0
 grow_horizontal = 0
 grow_vertical = 2
-focus_mode = 0
 mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_glass_btn_gold")
+theme_override_styles/hover = SubResource("StyleBoxFlat_glass_btn_gold_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_glass_btn_gold_hover")
 text = "FORCE WIN"
+
+[node name="TableInfo" type="VBoxContainer" parent="PremiumActionBar/ActionButtons"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -60.0
+offset_top = 10.0
+offset_right = 60.0
+offset_bottom = 60.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="RoundLabel" type="Label" parent="PremiumActionBar/ActionButtons/TableInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.984314, 0.752941, 0.176471, 1)
+theme_override_font_sizes/font_size = 14
+text = "ROUND 1"
+horizontal_alignment = 1
+
+[node name="PotLabel" type="Label" parent="PremiumActionBar/ActionButtons/TableInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.7)
+theme_override_font_sizes/font_size = 12
+text = "POT: 1,200"
+horizontal_alignment = 1
 
 [node name="CenterLayout" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -180,6 +347,7 @@ offset_right = 450.0
 offset_bottom = 52.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_constants/separation = 24
 alignment = 1
 
@@ -191,12 +359,8 @@ alignment = 1
 [node name="DZ3" type="PanelContainer" parent="CenterLayout/TopRow"]
 custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_recessed_dz")
 script = ExtResource("5_discard")
-
-[node name="ColorRect" type="ColorRect" parent="CenterLayout/TopRow/DZ3"]
-layout_mode = 2
-mouse_filter = 2
-color = Color(0, 0, 0, 0.2)
 
 [node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/TopRow/DZ3"]
 layout_mode = 2
@@ -210,12 +374,8 @@ layout_mode = 2
 [node name="DZ2" type="PanelContainer" parent="CenterLayout/TopRow"]
 custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_recessed_dz")
 script = ExtResource("5_discard")
-
-[node name="ColorRect" type="ColorRect" parent="CenterLayout/TopRow/DZ2"]
-layout_mode = 2
-mouse_filter = 2
-color = Color(0, 0, 0, 0.2)
 
 [node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/TopRow/DZ2"]
 layout_mode = 2
@@ -245,12 +405,8 @@ alignment = 1
 [node name="DZ4" type="PanelContainer" parent="CenterLayout/BottomRow"]
 custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_recessed_dz")
 script = ExtResource("5_discard")
-
-[node name="ColorRect" type="ColorRect" parent="CenterLayout/BottomRow/DZ4"]
-layout_mode = 2
-mouse_filter = 2
-color = Color(0, 0, 0, 0.2)
 
 [node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/BottomRow/DZ4"]
 layout_mode = 2
@@ -262,17 +418,20 @@ editor_only = false
 custom_minimum_size = Vector2(215, 86)
 layout_mode = 2
 size_flags_vertical = 4
+mouse_filter = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_nameplate")
 script = ExtResource("8_nameplate")
 
 [node name="HBoxContainer" type="HBoxContainer" parent="CenterLayout/BottomRow/Nameplate"]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 16
 
 [node name="AvatarContainer" type="Control" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer"]
 custom_minimum_size = Vector2(69, 69)
 layout_mode = 2
 size_flags_vertical = 4
+mouse_filter = 2
 
 [node name="AvatarMask" type="Panel" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
 clip_children = 1
@@ -282,6 +441,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_bg")
 
 [node name="AvatarImage" type="TextureRect" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer/AvatarMask"]
@@ -291,6 +451,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 texture = ExtResource("4_avatar")
 expand_mode = 1
 stretch_mode = 6
@@ -302,6 +463,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_border")
 
 [node name="TurnTimer" type="ColorRect" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/AvatarContainer"]
@@ -335,29 +497,81 @@ alignment = 1
 
 [node name="Name" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.984314, 0.901961, 0.611765, 1)
-theme_override_font_sizes/font_size = 21
+theme_override_colors/font_color = Color(1, 0.95, 0.8, 1)
+theme_override_font_sizes/font_size = 18
 text = "OkeyPro_99"
 clip_text = true
 text_overrun_behavior = 3
 
 [node name="Level" type="Label" parent="CenterLayout/BottomRow/Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.984314, 0.752941, 0.176471, 0.8)
-theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.8, 0.6, 0.2, 1)
+theme_override_font_sizes/font_size = 14
 text = "Level 1"
 clip_text = true
 text_overrun_behavior = 3
 
+[node name="ShimmerOverlay" type="ColorRect" parent="CenterLayout/BottomRow/Nameplate"]
+visible = false
+material = SubResource("ShaderMaterial_shimmer")
+layout_mode = 2
+mouse_filter = 2
+
+[node name="EmoteBubble" type="PanelContainer" parent="CenterLayout/BottomRow/Nameplate"]
+visible = false
+layout_mode = 0
+offset_left = 10.0
+offset_top = -45.0
+offset_right = 90.0
+offset_bottom = -10.0
+mouse_filter = 2
+
+[node name="Label" type="Label" parent="CenterLayout/BottomRow/Nameplate/EmoteBubble"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Thinking..."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EmotePicker" type="PanelContainer" parent="CenterLayout/BottomRow/Nameplate"]
+visible = false
+layout_mode = 0
+offset_left = 75.0
+offset_top = -60.0
+offset_right = 235.0
+offset_bottom = -10.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_glass_btn")
+
+[node name="HBox" type="HBoxContainer" parent="CenterLayout/BottomRow/Nameplate/EmotePicker"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Happy" type="Button" parent="CenterLayout/BottomRow/Nameplate/EmotePicker/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "😊"
+
+[node name="Thinking" type="Button" parent="CenterLayout/BottomRow/Nameplate/EmotePicker/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "🤔"
+
+[node name="Angry" type="Button" parent="CenterLayout/BottomRow/Nameplate/EmotePicker/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "😠"
+
+[node name="Sad" type="Button" parent="CenterLayout/BottomRow/Nameplate/EmotePicker/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "😢"
+
 [node name="DZ1" type="PanelContainer" parent="CenterLayout/BottomRow"]
 custom_minimum_size = Vector2(75, 104)
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_recessed_dz")
 script = ExtResource("5_discard")
-
-[node name="ColorRect" type="ColorRect" parent="CenterLayout/BottomRow/DZ1"]
-layout_mode = 2
-mouse_filter = 2
-color = Color(0, 0, 0, 0.2)
 
 [node name="ReferenceRect" type="ReferenceRect" parent="CenterLayout/BottomRow/DZ1"]
 layout_mode = 2
@@ -388,6 +602,7 @@ anchor_bottom = 1.0
 offset_top = -350.0
 grow_horizontal = 2
 grow_vertical = 0
+mouse_filter = 2
 
 [node name="RackUI" parent="BottomArea" instance=ExtResource("2_rack_scene")]
 layout_mode = 1
@@ -405,16 +620,21 @@ offset_right = 150.0
 offset_bottom = -110.0
 grow_horizontal = 2
 grow_vertical = 0
+mouse_filter = 2
 theme_override_constants/separation = 20
 alignment = 1
 
 [node name="StartButton" type="Button" parent="BottomArea/ActionButtons"]
-custom_minimum_size = Vector2(200, 50)
+custom_minimum_size = Vector2(280, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "START GAME (WITH BOTS)"
+theme_override_styles/normal = SubResource("StyleBoxFlat_glass_btn_gold")
+theme_override_styles/hover = SubResource("StyleBoxFlat_glass_btn_gold_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_glass_btn_gold_hover")
+text = "PLAY WITH BOTS"
 
 [node name="SortButton" type="Button" parent="BottomArea"]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -422,12 +642,17 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -100.0
-offset_top = -60.0
-offset_right = -52.0
-offset_bottom = -12.0
+offset_top = -90.0
+offset_right = -36.0
+offset_bottom = -26.0
 grow_horizontal = 0
 grow_vertical = 0
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-text = "S"
+theme_override_colors/font_color = Color(1, 0.95, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("StyleBoxFlat_glass_btn_gold")
+theme_override_styles/hover = SubResource("StyleBoxFlat_glass_btn_gold_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_glass_btn_gold_hover")
+mouse_default_cursor_shape = 2
+text = "SORT"
 
 

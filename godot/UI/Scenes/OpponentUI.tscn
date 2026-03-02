@@ -3,24 +3,34 @@
 [ext_resource type="Script" uid="uid://b665wy84o60yw" path="res://UI/Scripts/OpponentUI.cs" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://d8nqddynsr2o" path="res://Assets/avatar.png" id="2_avatar"]
 [ext_resource type="Shader" uid="uid://6oe2tkwyyog2" path="res://Assets/TimerShader.gdshader" id="3_shader"]
+[ext_resource type="Shader" path="res://Assets/shimmer.gdshader" id="4_shimmer"]
+[ext_resource type="Script" path="res://UI/Scripts/NameplateUI.cs" id="5_nameplate_script"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_shimmer"]
+shader = ExtResource("4_shimmer")
+shader_parameter/speed = 1.2
+shader_parameter/width = 0.15
+shader_parameter/intensity = 0.25
+shader_parameter/scale = 1.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-content_margin_left = 8.0
+content_margin_left = 12.0
 content_margin_top = 8.0
-content_margin_right = 21.0
+content_margin_right = 12.0
 content_margin_bottom = 8.0
-bg_color = Color(0.360784, 0.227451, 0.129412, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.164706, 0.101961, 0.0392157, 1)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
-shadow_color = Color(0, 0, 0, 0.2)
-shadow_size = 4
+bg_color = Color(0, 0, 0, 0.45)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.8, 0.6, 0.2, 0.45)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+shadow_color = Color(0, 0, 0, 0.3)
+shadow_size = 12
+shadow_offset = Vector2(0, 4)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_mask"]
 bg_color = Color(0.2, 0.2, 0.2, 1)
@@ -67,6 +77,7 @@ custom_minimum_size = Vector2(215, 86)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
+script = ExtResource("5_nameplate_script")
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
 [node name="HBoxContainer" type="HBoxContainer" parent="Nameplate"]
@@ -139,16 +150,38 @@ alignment = 1
 
 [node name="Name" type="Label" parent="Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.984314, 0.901961, 0.611765, 1)
-theme_override_font_sizes/font_size = 21
+theme_override_colors/font_color = Color(1, 0.95, 0.8, 1)
+theme_override_font_sizes/font_size = 18
 text = "Player"
 clip_text = true
 text_overrun_behavior = 3
 
 [node name="Level" type="Label" parent="Nameplate/HBoxContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.984314, 0.752941, 0.176471, 0.8)
-theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.8, 0.6, 0.2, 1)
+theme_override_font_sizes/font_size = 14
 text = "Level 1"
 clip_text = true
 text_overrun_behavior = 3
+
+[node name="ShimmerOverlay" type="ColorRect" parent="Nameplate"]
+visible = false
+material = SubResource("ShaderMaterial_shimmer")
+layout_mode = 2
+mouse_filter = 2
+
+[node name="EmoteBubble" type="PanelContainer" parent="Nameplate"]
+visible = false
+layout_mode = 0
+offset_left = 10.0
+offset_top = -45.0
+offset_right = 90.0
+offset_bottom = -10.0
+mouse_filter = 2
+
+[node name="Label" type="Label" parent="Nameplate/EmoteBubble"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Thinking..."
+horizontal_alignment = 1
+vertical_alignment = 1

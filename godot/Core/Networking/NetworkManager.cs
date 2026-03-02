@@ -396,6 +396,31 @@ namespace OkieRummyGodot.Core.Networking
         }
 
         [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
+        public void RequestSyncRack(string[] tileIds)
+        {
+            if (!Multiplayer.IsServer()) return;
+            int senderId = Multiplayer.GetRemoteSenderId();
+            var room = _roomManager.GetRoomByPeer(senderId);
+            if (room?.ActiveMatch == null) return;
+
+            int playerIndex = _roomManager.GetPlayerIndex(senderId);
+            var player = room.ActiveMatch.Players[playerIndex];
+            
+            // Rebuild rack from IDs to match client
+            var oldRack = player.Rack.Where(t => t != null).ToDictionary(t => t.Id);
+            var newRack = new Tile[26];
+            for (int i = 0; i < tileIds.Length && i < 26; i++)
+            {
+                if (!string.IsNullOrEmpty(tileIds[i]) && oldRack.TryGetValue(tileIds[i], out var tile))
+                {
+                    newRack[i] = tile;
+                }
+            }
+            player.Rack = newRack;
+            GD.Print($"NetworkManager: Synced rack for {player.Name} (Peer {senderId})");
+        }
+
+        [Rpc(MultiplayerApi.RpcMode.AnyPeer)]
         public void RequestMoveTile(int fromIndex, int toIndex)
         {
             if (!Multiplayer.IsServer()) return;

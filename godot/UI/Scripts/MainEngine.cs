@@ -27,6 +27,7 @@ public partial class MainEngine : Control
     [Export] public Button StartGameButton;
     [Export] public Button ForceWinButton;
     [Export] public Button LeaveGameButton;
+    [Export] public Button SortButton;
     [Export] public PackedScene GameEndUIScreen;
     public Core.Networking.NetworkManager NetworkManager;
     
@@ -99,6 +100,14 @@ public partial class MainEngine : Control
         // MatchManager-dependent wiring moved to InitializeMultiplayer/StartNewGame
         
         _localNameplate = GetNodeOrNull<NameplateUI>("CenterLayout/BottomRow/Nameplate");
+        if (_localNameplate != null)
+        {
+            _localNameplate.IsLocalPlayer = true;
+            _localNameplate.EmoteSelected += (emote) => {
+                _localNameplate.ShowEmote(emote);
+                // In a real app, we'd broadcast this via network here
+            };
+        }
         if (_localNameplate != null)
         {
             _localNameLabel = _localNameplate.GetNodeOrNull<Label>("HBoxContainer/VBoxContainer/Name");
@@ -187,8 +196,15 @@ public partial class MainEngine : Control
 
         if (StartGameButton != null)
         {
+            StartGameButton.Pressed += OnStartGamePressed;
+        }
+        
+        if (SortButton != null)
+        {
+            SortButton.Pressed += OnSortPressed;
         }
     }
+
 
     private void InitializeMultiplayer()
     {
@@ -222,11 +238,6 @@ public partial class MainEngine : Control
             {
                 LocalRackUI.Connect("TileMoved", new Callable(this, nameof(OnRackTileMoved)));
             }
-        }
-
-        if (StartGameButton != null)
-        {
-            StartGameButton.Pressed += OnStartGamePressed;
         }
 
         InitializeMultiplayerUI();
@@ -461,7 +472,14 @@ public partial class MainEngine : Control
         // If it's a bot's turn and we are NOT in multiplayer, trigger the timer
         if (activePlayer.IsBot && !_isMultiplayer)
         {
-            // If it's the bot's turn, we might want to play turn_change or similar if it's a transition
+            // Show thinking emote on the bot's nameplate
+            OpponentUI botUI = null;
+            if (GetRelativeIndex(activePlayer.Id) == 1) botUI = RightOpponent;
+            else if (GetRelativeIndex(activePlayer.Id) == 2) botUI = TopOpponent;
+            else if (GetRelativeIndex(activePlayer.Id) == 3) botUI = LeftOpponent;
+            
+            botUI?.Nameplate?.ShowEmote("Thinking...");
+            
             _botTimer.Start(1.5f); // Bot thinking time before acting
         }
         else if (activePlayer.Id == _localPlayer.Id && _matchManager.CurrentPhase == TurnPhase.Draw)
@@ -673,12 +691,15 @@ public partial class MainEngine : Control
         if (sourceNode != null && targetNode != null && drawnTile != null)
         {
             _activeAnimationsCount++;
+            _audioEngine?.PlayGame("tile_draw");
             
             // Set tile UI temporarily hidden before animation starts so it doesn't snap
             targetTileUI.Visible = false;
             
              AnimateTileMove(sourceNode, targetNode, drawnTile, targetTileUI, null, () => {
                 targetTileUI.Visible = true;
+                targetTileUI.PlayBounce();
+                _audioEngine?.PlayGame("tile_click"); // reuse click as a 'thud'
                 _activeAnimationsCount--;
                 HandleGameStateChanged(true);
             });
@@ -723,6 +744,7 @@ public partial class MainEngine : Control
         if (_isMultiplayer)
         {
             NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestDiscard), rackIndex);
+            _audioEngine?.PlayGame("tile_discard");
             return;
         }
 
@@ -886,13 +908,20 @@ public partial class MainEngine : Control
     {
         if (playerId == _localPlayer.Id) return;
 
-        Control sourceNode = null;
-        TileUI sourceTileUI = null;
-        if (fromDiscard)
+        Control sourceNode = fromDiscard ? GetDiscardSourceForPlayer(playerId) : _boardCenter?.DeckCountBadge;
+        Control targetNode = GetOpponentUIById(playerId);
+        
+        // If drawing from discard, hide the source tile while it flies
+        TileUI sourceTileUI = fromDiscard ? GetDiscardTileUIAtNode(sourceNode) : null;
+
+        if (sourceNode != null && targetNode != null && tile != null)
         {
-            // Find who is to the left of this player
-            sourceNode = GetDiscardSourceForPlayer(playerId);
-            sourceTileUI = GetDiscardTileUIAtNode(sourceNode);
+            _activeAnimationsCount++;
+            bool forceFaceDown = !fromDiscard;
+            AnimateTileMove(sourceNode, targetNode, tile, null, sourceTileUI, () => {
+                _activeAnimationsCount--;
+                HandleGameStateChanged(true);
+            }, forceFaceDown);
         }
 
         _audioEngine?.PlayGame("tile_draw");
@@ -1024,17 +1053,23 @@ public partial class MainEngine : Control
 
     public void OnSortPressed()
     {
-        _localPlayer.QuickSortRack();
-        LocalRackUI?.RefreshVisuals();
+        LocalRackUI?.SortCurrentRack();
+        _audioEngine?.PlayUI("button_click");
+
+        if (_isMultiplayer && _localPlayer != null && NetworkManager != null)
+        {
+            string[] tileIds = _localPlayer.Rack.Select(t => t?.Id ?? "").ToArray();
+            NetworkManager.RpcId(1, nameof(Core.Networking.NetworkManager.RequestSyncRack), (Variant)tileIds);
+        }
     }
     
     // --- Global Animation Manager ---
     private void AnimateTileMove(Control sourceControl, Control targetControl, Tile tileData, Action onComplete)
     {
-        AnimateTileMove(sourceControl, targetControl, tileData, null, null, onComplete);
+        AnimateTileMove(sourceControl, targetControl, tileData, null, null, onComplete, false);
     }
 
-    private void AnimateTileMove(Control sourceControl, Control targetControl, Tile tileData, TileUI suppressTarget, TileUI hideSource, Action onComplete)
+    private void AnimateTileMove(Control sourceControl, Control targetControl, Tile tileData, TileUI suppressTarget, TileUI hideSource, Action onComplete, bool forceFaceDown = false)
     {
         if (sourceControl == null || targetControl == null || tileData == null)
         {
@@ -1053,6 +1088,7 @@ public partial class MainEngine : Control
         
         // Setup ghost visuals
         ghostTile.SetTileData(tileData);
+        if (forceFaceDown) ghostTile.IsVisualSuppressed = true;
         ghostTile.SizeFlagsHorizontal = 0;
         ghostTile.SizeFlagsVertical = 0;
         
@@ -1080,7 +1116,12 @@ public partial class MainEngine : Control
         }
 
         tween.Finished += () => {
-            if (suppressTarget != null) suppressTarget.IsVisualSuppressed = false;
+            if (suppressTarget != null) 
+            {
+                suppressTarget.IsVisualSuppressed = false;
+                suppressTarget.PlayBounce();
+                _audioEngine?.PlayGame("tile_click"); // Thud
+            }
             if (hideSource != null) hideSource.IsVisualSuppressed = false;
             ghostTile.QueueFree();
             onComplete?.Invoke();
@@ -1095,6 +1136,7 @@ public partial class MainEngine : Control
             if (wasDrag)
             {
                 GD.Print("MainEngine: Local draw was via drag-and-drop. Skipping flying animation.");
+                _audioEngine?.PlayGame("tile_draw");
                 return;
             }
 

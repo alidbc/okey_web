@@ -10,7 +10,7 @@ public partial class OpponentUI : HBoxContainer
     private Label _nameLabel;
     private Label _levelLabel;
     private TextureRect _avatarRect;
-    private PanelContainer _nameplate;
+    public NameplateUI Nameplate { get; private set; }
     public bool IsValidDiscardTarget { get; set; } = false;
 
     private ColorRect _timerRect;
@@ -28,9 +28,9 @@ public partial class OpponentUI : HBoxContainer
         _nameLabel = GetNodeOrNull<Label>("Nameplate/HBoxContainer/VBoxContainer/Name");
         _levelLabel = GetNodeOrNull<Label>("Nameplate/HBoxContainer/VBoxContainer/Level");
         _avatarRect = GetNodeOrNull<TextureRect>("Nameplate/HBoxContainer/AvatarContainer/AvatarMask/AvatarImage");
-        _nameplate = GetNodeOrNull<PanelContainer>("Nameplate");
+        Nameplate = GetNodeOrNull<NameplateUI>("Nameplate");
 
-        _inactiveStyle = (StyleBoxFlat)_nameplate?.GetThemeStylebox("panel");
+        _inactiveStyle = (StyleBoxFlat)Nameplate?.GetThemeStylebox("panel");
 
         _activeStyle = (StyleBoxFlat)_inactiveStyle?.Duplicate();
         if (_activeStyle != null)
@@ -144,18 +144,18 @@ public partial class OpponentUI : HBoxContainer
 
     public Control GetDropSlotNode()
     {
-        return (Control)_nameplate ?? (Control)this;
+        return (Control)Nameplate ?? (Control)this;
     }
 
     public TileUI GetDiscardTileUI() => null; // To be replaced by DZ nodes logic
 
     public void SetActive(bool isActive)
     {
-        if (_nameplate != null && _activeStyle != null && _inactiveStyle != null)
+        if (Nameplate != null)
         {
-            _nameplate.AddThemeStyleboxOverride("panel", isActive ? _activeStyle : _inactiveStyle);
+            Nameplate.SetActive(isActive);
             
-            // Scaled effect
+            // Scaled effect on the wrapper as well
             Scale = isActive ? new Vector2(1.05f, 1.05f) : Vector2.One;
 
             if (!isActive) StopTimer();

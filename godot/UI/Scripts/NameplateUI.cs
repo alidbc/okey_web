@@ -9,7 +9,11 @@ namespace OkieRummyGodot.UI.Scripts
         [Signal]
         public delegate void WinConditionDroppedEventHandler(int rackIndex, Control target);
 
+        [Signal]
+        public delegate void EmoteSelectedEventHandler(string emote);
+
         public bool IsInteractable { get; set; } = false;
+        public bool IsLocalPlayer { get; set; } = false;
 
         private ColorRect _timerRect;
         private ShaderMaterial _timerMaterial;
@@ -21,6 +25,11 @@ namespace OkieRummyGodot.UI.Scripts
         private StyleBoxFlat _activeStyle;
         private TextureRect _avatarRect;
         private Label _nameLabel;
+
+        private ColorRect _shimmerOverlay;
+        private Control _emoteBubble;
+        private Label _emoteLabel;
+        private Control _emotePicker;
 
         public override void _Ready()
         {
@@ -39,6 +48,58 @@ namespace OkieRummyGodot.UI.Scripts
 
             _avatarRect = GetNodeOrNull<TextureRect>("HBoxContainer/AvatarContainer/AvatarMask/AvatarImage");
             _nameLabel = GetNodeOrNull<Label>("HBoxContainer/VBoxContainer/Name");
+            
+            _shimmerOverlay = GetNodeOrNull<ColorRect>("ShimmerOverlay");
+            _emoteBubble = GetNodeOrNull<Control>("EmoteBubble");
+            _emoteLabel = _emoteBubble?.GetNodeOrNull<Label>("Label");
+            _emoteBubble?.Hide();
+
+            _emotePicker = GetNodeOrNull<Control>("EmotePicker");
+            _emotePicker?.Hide();
+
+            // Setup emote buttons if they exist
+            if (_emotePicker != null)
+            {
+                foreach (var btn in _emotePicker.FindChildren("*", "Button"))
+                {
+                    if (btn is Button b)
+                    {
+                        b.Pressed += () => OnEmoteSelected(b.Text);
+                        b.MouseDefaultCursorShape = CursorShape.PointingHand;
+                    }
+                }
+            }
+
+            // Set cursor for the whole nameplate if it's the local player
+            if (IsLocalPlayer)
+            {
+                MouseDefaultCursorShape = CursorShape.PointingHand;
+            }
+        }
+
+        public override void _GuiInput(InputEvent @event)
+        {
+            if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
+            {
+                if (IsLocalPlayer)
+                {
+                    ToggleEmotePicker();
+                    GetViewport().SetInputAsHandled();
+                }
+            }
+        }
+
+        private void ToggleEmotePicker()
+        {
+            if (_emotePicker == null) return;
+            if (_emotePicker.Visible) _emotePicker.Hide();
+            else _emotePicker.Show();
+        }
+
+        private void OnEmoteSelected(string emote)
+        {
+            _emotePicker?.Hide();
+            EmitSignal(nameof(EmoteSelected), emote);
         }
 
         public void SetDisplayName(string name)
@@ -128,7 +189,28 @@ namespace OkieRummyGodot.UI.Scripts
         {
             AddThemeStyleboxOverride("panel", isActive ? _activeStyle : _inactiveStyle);
             Scale = isActive ? new Vector2(1.05f, 1.05f) : Vector2.One;
-            if (!isActive) StopTimer();
+            if (isActive) _shimmerOverlay?.Show();
+            else { _shimmerOverlay?.Hide(); StopTimer(); }
+        }
+
+        public async void ShowEmote(string text)
+        {
+            if (_emoteBubble == null || _emoteLabel == null) return;
+            _emoteLabel.Text = text;
+            _emoteBubble.Show();
+            _emoteBubble.Modulate = new Color(1, 1, 1, 0);
+            
+            var tween = CreateTween();
+            tween.TweenProperty(_emoteBubble, "modulate:a", 1.0f, 0.3f);
+            tween.TweenProperty(_emoteBubble, "position:y", _emoteBubble.Position.Y - 10, 0.3f);
+            
+            await Task.Delay(2000);
+            
+            var hideTween = CreateTween();
+            hideTween.TweenProperty(_emoteBubble, "modulate:a", 0.0f, 0.3f);
+            await ToSignal(hideTween, "finished");
+            _emoteBubble.Hide();
+            _emoteBubble.Position = new Vector2(_emoteBubble.Position.X, _emoteBubble.Position.Y + 10);
         }
 
         public void UpdateTimer(long startTime, int duration)

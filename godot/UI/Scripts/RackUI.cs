@@ -94,12 +94,30 @@ public partial class RackUI : Control
 
 	public void RefreshVisuals()
 	{
+		RefreshVisuals(false);
+	}
+
+	public void RefreshVisuals(bool animate)
+	{
 		if (_playerData == null) return;
 
 		for (int i = 0; i < 26; i++)
 		{
 			Tile tile = _playerData.Rack[i];
-			_slots[i].SetTileData(tile);
+			var tileUI = _slots[i];
+			
+			if (animate && tileUI.TileData != tile && tile != null)
+			{
+				// If we have a new tile in this slot, and we want to animate, 
+				// we could potentially find where it CAME from. 
+				// For now, let's at least play the bounce on the target to feel responsive.
+				tileUI.SetTileData(tile);
+				tileUI.PlayBounce();
+			}
+			else 
+			{
+				tileUI.SetTileData(tile);
+			}
 		}
 	}
 
@@ -108,7 +126,7 @@ public partial class RackUI : Control
 		if (_playerData != null)
 		{
 			_playerData.MoveTile(fromIndex, toIndex);
-			RefreshVisuals();
+			RefreshVisuals(true);
 			EmitSignal(nameof(TileMoved), fromIndex, toIndex);
 		}
 	}
@@ -134,6 +152,15 @@ public partial class RackUI : Control
 			return _slots[index];
 		}
 		return null;
+	}
+
+	public void SortCurrentRack()
+	{
+		if (_playerData != null)
+		{
+			_playerData.QuickSortRack();
+			RefreshVisuals(true);
+		}
 	}
 
 	[Signal]
